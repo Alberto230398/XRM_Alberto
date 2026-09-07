@@ -169,6 +169,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Android: com.UTOPIA.WebRTCStreaming
+    Standalone: com.UTOPIA.WebRTCStreaming
   buildNumber:
     Standalone: 0
     VisionOS: 0

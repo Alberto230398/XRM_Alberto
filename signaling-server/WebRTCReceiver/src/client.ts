@@ -31,6 +31,8 @@ const btnConnect = $<HTMLButtonElement>("btnConnect");
 const btnDisconnect = $<HTMLButtonElement>("btnDisconnect");
 const btnAudio = $<HTMLButtonElement>("btnAudio");
 const statusEl = $<HTMLSpanElement>("status");
+const micSelectEl = $<HTMLSelectElement>("micSelect");
+const micLevelEl = $<HTMLDivElement>("micLevel");
 
 // --- stato ---
 let ws: WebSocket | null = null;
@@ -44,6 +46,10 @@ let audioEnabled = true;                       // parte con audio; se bloccato s
 let gestureArmed = false;                       // listener "sblocca al primo click/tasto" installato?
 let localStream: MediaStream | null = null;     // webcam + mic del computer, inviati al Quest
 let localMediaPromise: Promise<MediaStream | null> | null = null;
+let statsTimer: ReturnType<typeof setInterval> | null = null;
+let selectedMicId: string | null = null;   // microfono scelto nel menu
+let audioCtx: AudioContext | null = null;  // per la barra del livello
+let levelRaf: number | null = null;
 
 function setStatus(s: string): void { statusEl.textContent = s; }
 function setOverlay(text: string, white = false): void {
@@ -179,6 +185,7 @@ function connect(): void {
 }
 
 function closePeerConnection(): void {
+  if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
   if (pc) { pc.close(); pc = null; }
   pendingCandidates = [];
   remoteDescSet = false;
@@ -276,32 +283,147 @@ function toggleAudio(): void {
   applyAudioState();
 }
 
-// Acquisisce webcam+mic locali una sola volta. Se l'utente nega o non c'è hardware,
-// la chiamata resta comunque ricevente (senza inviare nulla al Quest).
+// Acquisisce microfono e webcam locali. IMPORTANTE: due richieste SEPARATE.
+// Chiedendoli insieme, se manca la webcam (es. Continuity dell'iPhone scollegata) getUserMedia
+// rigetta in blocco e si porta via anche il microfono, che invece funzionerebbe benissimo.
+// Separandoli, ognuno vive di vita propria: senza webcam mandiamo comunque l'audio.
 function ensureLocalMedia(): Promise<MediaStream | null> {
   if (localStream) return Promise.resolve(localStream);
-  if (!localMediaPromise) {
-    // Risoluzione/fps contenuti: il Quest deve decodificare questo stream MENTRE codifica il suo
-    // passthrough. Tenere la webcam a 480p/20fps riduce il rischio di saturare il Wi-Fi e di
-    // freeze del decoder (perdita di keyframe). Alza questi valori solo se la rete regge.
-    const constraints: MediaStreamConstraints = {
-      video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 20, max: 24 } },
-      audio: { echoCancellation: true, noiseSuppression: true },
-    };
-    localMediaPromise = navigator.mediaDevices.getUserMedia(constraints)
-      .then((s) => {
-        localStream = s;
-        localVideoEl.srcObject = s;
-        localVideoEl.style.display = "block";
-        return s;
-      })
-      .catch((err: DOMException) => {
-        console.warn("[MEDIA] webcam/mic non disponibili:", err.name, err.message);
-        localMediaPromise = null; // consenti un nuovo tentativo alla prossima connessione
-        return null;
-      });
-  }
+  if (!localMediaPromise) localMediaPromise = acquireLocalMedia();
   return localMediaPromise;
+}
+
+async function acquireLocalMedia(): Promise<MediaStream | null> {
+  const stream = new MediaStream();
+
+  // --- microfono ---
+  try {
+    const a = await navigator.mediaDevices.getUserMedia({
+      audio: selectedMicId
+        ? { deviceId: { exact: selectedMicId }, echoCancellation: true, noiseSuppression: true }
+        : { echoCancellation: true, noiseSuppression: true },
+    });
+    a.getAudioTracks().forEach((t) => stream.addTrack(t));
+  } catch (err) {
+    console.warn("[MEDIA] microfono non disponibile:", (err as DOMException).name);
+  }
+
+  // --- webcam --- (risoluzione contenuta: il Quest la decodifica mentre codifica il suo video)
+  try {
+    const v = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 20, max: 24 } },
+    });
+    v.getVideoTracks().forEach((t) => stream.addTrack(t));
+  } catch (err) {
+    console.warn("[MEDIA] webcam non disponibile:", (err as DOMException).name);
+  }
+
+  // Il menu va popolato SEMPRE, anche se qualcosa è fallito: serve proprio a diagnosticare.
+  void populateMicList();
+
+  if (stream.getTracks().length === 0) {
+    console.warn("[MEDIA] né microfono né webcam: resto in sola ricezione");
+    localMediaPromise = null;   // consenti un nuovo tentativo alla prossima connessione
+    return null;
+  }
+
+  localStream = stream;
+  localVideoEl.srcObject = stream;
+  localVideoEl.style.display = stream.getVideoTracks().length > 0 ? "block" : "none";
+  logAudioInputDiagnostics(stream);
+  startLevelMeter();
+  return stream;
+}
+
+// Riempie il menu con i microfoni disponibili. NB: le etichette sono leggibili solo DOPO che il
+// permesso è stato concesso, quindi va chiamata dopo getUserMedia.
+async function populateMicList(): Promise<void> {
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  const inputs = devs.filter((d) => d.kind === "audioinput");
+  const current = selectedMicId
+    ?? localStream?.getAudioTracks()[0]?.getSettings().deviceId
+    ?? "";
+  micSelectEl.textContent = "";
+  inputs.forEach((d, i) => {
+    const opt = document.createElement("option");
+    opt.value = d.deviceId;
+    opt.textContent = d.label || `Microfono ${i + 1}`;
+    if (d.deviceId === current) opt.selected = true;
+    micSelectEl.appendChild(opt);
+  });
+}
+
+// Cambia microfono "a caldo": sostituisce il track nel sender WebRTC con replaceTrack, che NON
+// richiede rinegoziazione (niente nuove offerte → nessun rischio di rompere la connessione).
+async function switchMicrophone(deviceId: string): Promise<void> {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true },
+    });
+    const newTrack = s.getAudioTracks()[0];
+    if (!newTrack || !localStream) return;
+
+    if (pc) {
+      const sender = pc.getSenders().find((snd) => snd.track?.kind === "audio");
+      if (sender) await sender.replaceTrack(newTrack);
+    }
+    // sostituisci il vecchio track anche nello stream locale (e spegnilo, così il device si libera)
+    localStream.getAudioTracks().forEach((t) => { t.stop(); localStream?.removeTrack(t); });
+    localStream.addTrack(newTrack);
+
+    selectedMicId = deviceId;
+    console.log(`[MIC] ora invio da: "${newTrack.label}" muted=${newTrack.muted}`);
+    startLevelMeter();
+  } catch (e) {
+    console.warn("[MIC] cambio microfono fallito:", e);
+  }
+}
+
+// Barra di livello: prova visiva che la sorgente scelta capta davvero qualcosa.
+function startLevelMeter(): void {
+  stopLevelMeter();
+  const track = localStream?.getAudioTracks()[0];
+  if (!track) return;
+
+  audioCtx = new AudioContext();
+  void audioCtx.resume();   // può partire sospeso finché non c'è un gesto utente
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  audioCtx.createMediaStreamSource(new MediaStream([track])).connect(analyser);
+
+  const buf = new Float32Array(analyser.fftSize);
+  const tick = (): void => {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) sum += v * v;
+    const rms = Math.sqrt(sum / buf.length);          // volume medio del blocco
+    micLevelEl.style.width = `${Math.min(100, Math.round(rms * 300))}%`;
+    levelRaf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+function stopLevelMeter(): void {
+  if (levelRaf !== null) { cancelAnimationFrame(levelRaf); levelRaf = null; }
+  if (audioCtx) { void audioCtx.close(); audioCtx = null; }
+  micLevelEl.style.width = "0%";
+}
+
+// Diagnostica microfono: quale device ha scelto il browser e in che stato è.
+// `muted=true` significa che il sistema operativo NON sta consegnando audio (permesso mancante,
+// device staccato o input silenziato): la traccia esiste ma trasporta silenzio.
+function logAudioInputDiagnostics(stream: MediaStream): void {
+  const track = stream.getAudioTracks()[0];
+  if (!track) {
+    console.warn("[MIC] nessuna traccia audio nello stream: getUserMedia non ha dato il microfono");
+    return;
+  }
+  console.log(`[MIC] in uso: "${track.label}" | enabled=${track.enabled} muted=${track.muted} stato=${track.readyState}`);
+  void navigator.mediaDevices.enumerateDevices().then((devs) => {
+    const inputs = devs.filter((d) => d.kind === "audioinput");
+    console.log(`[MIC] microfoni disponibili (${inputs.length}):`);
+    inputs.forEach((d, i) => console.log(`[MIC]   ${i}: "${d.label || "(nome nascosto: manca il permesso)"}"`));
+  });
 }
 
 // Aggancia i track locali alle m-line che il Quest ha GIÀ offerto (sendrecv), riusando il
@@ -390,6 +512,45 @@ async function handleOffer(remotePeerId: string, payload: string): Promise<void>
   await pc.setLocalDescription(answer);
   ws?.send(`ANSWER|${PEER_ID}|${remotePeerId}|${JSON.stringify(answer)}|0|True`);
   await capOutgoingVideoBitrate();
+  logNegotiatedDirections();
+  startOutboundAudioStats();
+}
+
+// Diagnostica audio→Quest. Distingue tre casi che dall'esterno sembrano identici:
+//  - audioLevel ~0        → il microfono non capta nulla (device sbagliato/muto): mandiamo SILENZIO
+//  - packetsSent fermo    → il track non viene trasmesso affatto
+//  - livello ok + pacchetti che salgono → inviamo audio vero: il problema è la riproduzione sul Quest
+function startOutboundAudioStats(): void {
+  if (statsTimer) return;
+  statsTimer = setInterval(() => {
+    if (!pc) return;
+    void pc.getStats().then((stats) => {
+      stats.forEach((r: unknown) => {
+        const s = r as { type?: string; kind?: string; packetsSent?: number; bytesSent?: number; audioLevel?: number };
+        if (s.type === "outbound-rtp" && s.kind === "audio") {
+          console.log(`[STATS] audio→Quest: packetsSent=${s.packetsSent} bytesSent=${s.bytesSent}`);
+        }
+        if (s.type === "media-source" && s.kind === "audio") {
+          console.log(`[STATS] microfono locale: audioLevel=${(s.audioLevel ?? 0).toFixed(4)} (parla per vederlo salire)`);
+        }
+      });
+    });
+  }, 3000);
+}
+
+// Stampa la direzione REALMENTE negoziata per ogni m-line. `direction` è ciò che CHIEDIAMO,
+// `currentDirection` è ciò che è stato CONCORDATO: se per l'audio risulta "recvonly" significa che
+// il Quest non ha accettato di riceverci → il mic non parte mai, per quanto abbiamo fatto
+// replaceTrack. È la prova che distingue "non lo mandiamo" da "non lo riproduce".
+function logNegotiatedDirections(): void {
+  if (!pc) return;
+  for (const t of pc.getTransceivers()) {
+    const kind = t.receiver?.track?.kind ?? t.sender?.track?.kind ?? "?";
+    const sending = t.currentDirection === "sendrecv" || t.currentDirection === "sendonly";
+    console.log(
+      `[NEGO] ${kind}: chiesto=${t.direction} concordato=${t.currentDirection} ` +
+      `track=${t.sender?.track ? "sì" : "no"} → INVIO ${sending ? "ATTIVO" : "NON attivo"}`);
+  }
 }
 
 // Limita il bitrate/framerate del video che INVIAMO al Quest, per non saturare l'uplink Wi-Fi
@@ -418,6 +579,7 @@ function disconnect(): void {
   closePeerConnection();
   // Spegni webcam+mic e nascondi la self-view (il LED della camera si spegne).
   if (localStream) {
+    stopLevelMeter();
     localStream.getTracks().forEach((t) => t.stop());
     localStream = null;
     localMediaPromise = null;
@@ -436,6 +598,9 @@ function disconnect(): void {
 btnConnect.addEventListener("click", connect);
 btnDisconnect.addEventListener("click", disconnect);
 btnAudio.addEventListener("click", toggleAudio);
+micSelectEl.addEventListener("change", () => void switchMicrophone(micSelectEl.value));
+// Se colleghi/scolleghi un device (es. l'iPhone in Continuity), aggiorna la lista.
+navigator.mediaDevices.addEventListener("devicechange", () => void populateMicList());
 
 // Avvia da solo: lo <script> è in fondo al <body>, quindi il DOM è già pronto.
 connect();

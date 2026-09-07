@@ -73,6 +73,22 @@
   #status {
     font-size: 0.7rem; color: #555; letter-spacing: 0.05em; min-width: 80px;
   }
+
+  select {
+    background: rgba(20,20,20,0.9); border: 1px solid #333; color: #ccc;
+    padding: 4px 6px; font-family: inherit; font-size: 0.7rem;
+    max-width: 190px;
+  }
+
+  /* barra del livello microfono: conferma visiva che quella sorgente capta davvero */
+  #micLevelWrap {
+    width: 56px; height: 9px; flex: none;
+    border: 1px solid #333; background: rgba(20,20,20,0.9);
+  }
+  #micLevel {
+    height: 100%; width: 0%; background: #4a4;
+    transition: width 0.05s linear;
+  }
 </style>
 </head>
 <body>
@@ -89,6 +105,8 @@
   <button id="btnConnect">Connect</button>
   <button id="btnDisconnect" disabled>Disconnect</button>
   <button id="btnAudio" disabled>Audio Off</button>
+  <select id="micSelect" title="Microfono da inviare al Quest"></select>
+  <div id="micLevelWrap" title="Livello del microfono: parla per vederlo muovere"><div id="micLevel"></div></div>
   <span id="status">disconnected</span>
 </div>
 

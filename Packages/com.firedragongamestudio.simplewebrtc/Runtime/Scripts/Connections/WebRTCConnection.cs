@@ -5,6 +5,7 @@ using NativeWebSocket;
 #endif
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using Unity.WebRTC;
 using UnityEngine;
 using UnityEngine.Events;
@@ -83,6 +84,9 @@ namespace SimpleWebRTC {
         [SerializeField] private AudioSource StreamingAudioSource;
         [SerializeField] private Transform ReceivingAudioSourceParent;
         public UnityEvent AudioTransmissionReceived;
+
+        [Header("Debug")]
+        [SerializeField] private TextMeshProUGUI DebugText;
 
         // Custom hook: se registrato, viene invocato per ottenere la RenderTexture da streammare
         // invece di usare StreamingCamera.CaptureStreamTrack.
@@ -562,6 +566,10 @@ namespace SimpleWebRTC {
                 receivingAudioSource.name = $"{audioReceiverSenderPeerId}-Receiving-AudioSource";
                 receivingAudioSource.transform.SetParent(ReceivingAudioSourceParent);
                 webRTCManager.AudioReceivers[audioReceiverSenderPeerId] = receivingAudioSource;
+
+                // DEBUG
+                Debug.Log($"Audio receiver created for peer: {audioReceiverSenderPeerId}");
+                DebugText.text = $"Audio receiver created for peer: {audioReceiverSenderPeerId}";
             }
         }
 
