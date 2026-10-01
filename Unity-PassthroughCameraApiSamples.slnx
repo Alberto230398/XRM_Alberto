@@ -1,5 +1,4 @@
 ﻿<Solution>
   <Project Path="Assembly-CSharp.csproj" />
-  <Project Path="SimpleWebRTC.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
 </Solution>

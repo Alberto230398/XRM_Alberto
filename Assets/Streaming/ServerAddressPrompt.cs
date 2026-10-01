@@ -31,13 +31,23 @@ public class ServerAddressPrompt : MonoBehaviour
 
     void Start()
     {
-        // L'indirizzo viene preso dal campo WebSocketServerAddress impostato in inspector.
-        // Avviamo comunque la connessione: nelle scene WebSocketConnectionActive e' 0, quindi
-        // senza questa chiamata il WebRTCConnection non si connetterebbe da solo.
+        // Server XRM (Pion SFU): se in scena c'e' un XrmSessionClient si usa quello (URL e session
+        // ID stanno nel suo inspector) e il package SimpleWebRTC non entra in gioco.
+        // Connect() e' idempotente: non fa nulla se il client ha gia' autoConnect attivo.
+        var xrm = FindAnyObjectByType<XrmSessionClient>();
+        if (xrm != null)
+        {
+            xrm.Connect();
+            return;
+        }
+
+        // Fallback legacy (server Node + SimpleWebRTC): l'indirizzo viene preso dal campo
+        // WebSocketServerAddress impostato in inspector. Avviamo comunque la connessione: nelle
+        // scene WebSocketConnectionActive e' 0, quindi senza questa chiamata non si connetterebbe.
         if (_webRTCConnection != null)
             _webRTCConnection.Connect();
         else
-            Debug.LogError("[ServerAddressPrompt] Nessuna WebRTCConnection trovata in scena.");
+            Debug.LogError("[ServerAddressPrompt] Nessun XrmSessionClient ne' WebRTCConnection trovati in scena.");
 
         // --- Inserimento manuale IP via tastiera di sistema (DISABILITATO) ---
         // BuildDisplayUI();

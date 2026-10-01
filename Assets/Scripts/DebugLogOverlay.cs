@@ -20,7 +20,7 @@ public class DebugLogOverlay : MonoBehaviour
     // loro volta finiscono nel pannello e generano altre righe → il rumore seppellisce i log
     // utili in un frame. Teniamo solo le righe che parlano di WebRTC/signaling.
     static readonly string[] Keywords = {
-        "webrtc", "websocket", "peer", "ice", "signal", "offer", "answer", "candidate", "track", "webrtcconnection", "webrtcmanager"
+        "xrm", "webrtc", "websocket", "peer", "ice", "signal", "offer", "answer", "candidate", "track", "webrtcconnection", "webrtcmanager"
     };
 
     readonly Queue<string> _lines = new();
