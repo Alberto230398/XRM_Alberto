@@ -22,6 +22,10 @@ public class VideoManager : MonoBehaviour
     VideoInterface[] sources => videoSources.Select(s => s as VideoInterface).ToArray();
 
     RenderTexture camRenderTexture;      // RT su cui disegna la sorgente attiva: è il feed del track
+
+    // Il frame che si sta streammando in questo momento (null finché lo streaming non parte).
+    // Lo usa XrmKeyframeUploader per catturare un keyframe.
+    public RenderTexture CurrentFrame => camRenderTexture;
     VideoInterface currentSource;
     VideoStreamTrack _videoStreamTrack;
     AudioStreamTrack _audioStreamTrack;

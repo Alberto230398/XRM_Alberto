@@ -62,6 +62,19 @@ public class XrmSessionClient : MonoBehaviour
     public bool IsConnected => _pc != null && _pc.ConnectionState == RTCPeerConnectionState.Connected;
     public Texture RemoteVideoTexture { get; private set; }
     public string SessionId => sessionId;
+    public bool IsDataChannelOpen => _dc != null && _dc.ReadyState == RTCDataChannelState.Open;
+
+    // Origine HTTP del Session Server, ricavata dall'URL del signaling: wss://host/ws → https://host.
+    // Le API REST del server (es. /api/presign per l'upload dei keyframe) stanno sullo stesso host.
+    public string HttpBaseUrl
+    {
+        get
+        {
+            var uri = new Uri(serverUrl);
+            string scheme = uri.Scheme == "ws" ? "http" : "https";
+            return uri.IsDefaultPort ? $"{scheme}://{uri.Host}" : $"{scheme}://{uri.Host}:{uri.Port}";
+        }
+    }
 
     WebSocket _ws;
     RTCPeerConnection _pc;
@@ -716,6 +729,15 @@ public class XrmSessionClient : MonoBehaviour
     void Log(string msg) { ToFile("I", msg); if (verboseLogs) Debug.Log($"[XRM] {msg}"); }
     void LogWarning(string msg) { ToFile("W", msg); Debug.LogWarning($"[XRM] {msg}"); }
     void LogError(string msg) { ToFile("E", msg); Debug.LogError($"[XRM] {msg}"); }
+
+    // Per gli altri componenti XRM (es. XrmKeyframeUploader): stesso prefisso e stesso file di log,
+    // così tutta la sessione si legge in ordine in xrm_debug.log.
+    public void WriteLog(string msg, LogType type = LogType.Log)
+    {
+        if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) LogError(msg);
+        else if (type == LogType.Warning) LogWarning(msg);
+        else Log(msg);
+    }
 
     void ToFile(string level, string msg)
     {

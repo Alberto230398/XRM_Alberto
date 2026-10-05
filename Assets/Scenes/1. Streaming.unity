@@ -804,7 +804,7 @@ MonoBehaviour:
   - {fileID: 230628489}
   audioSource: {fileID: 338736731}
   activeSourceIndex: 0
-  client: {fileID: 0}
+  client: {fileID: 1900000003}
 --- !u!4 &287669439
 Transform:
   m_ObjectHideFlags: 0
@@ -5521,6 +5521,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1900000002}
   - component: {fileID: 1900000003}
+  - component: {fileID: 1900000004}
   m_Layer: 0
   m_Name: XRM Session Client
   m_TagString: Untagged
@@ -5587,6 +5588,29 @@ MonoBehaviour:
           m_BoolArgument: 1
         m_CallState: 2
   DataMessageReceived:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &1900000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4e17f0c9a3d4d52a86e2f5c7d1a9b30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XrmKeyframeUploader
+  client: {fileID: 1900000003}
+  sourceTexture: {fileID: 0}
+  videoManager: {fileID: 287669438}
+  jpegQuality: 85
+  captureButton: 67108864
+  Uploaded:
+    m_PersistentCalls:
+      m_Calls: []
+  Failed:
     m_PersistentCalls:
       m_Calls: []
 --- !u!1 &1902027445
