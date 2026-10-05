@@ -67,6 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Unity-PassthroughCameraApiSamples.slnx",
+    "dotnet.defaultSolution": "XRM_Alberto.slnx",
     "dotnet.enableWorkspaceBasedDevelopment": false
 }

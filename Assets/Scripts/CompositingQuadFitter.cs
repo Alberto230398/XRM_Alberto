@@ -18,7 +18,7 @@ public class CompositingQuadFitter : MonoBehaviour
     [SerializeField] private Camera compositingCamera;
 
     [Tooltip("Fallback per trovare la camera: se compositingCamera e' vuota, usa KeyFrameManager.renderCamera.")]
-    [SerializeField] private KeyFrameManager keyFrameManager;
+    [SerializeField] private OldKeyFrameManager keyFrameManager;
 
     [Tooltip("Distanza del Quad davanti alla camera, in metri.")]
     [SerializeField] private float distance = 1f;

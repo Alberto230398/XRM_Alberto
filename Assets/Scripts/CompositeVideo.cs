@@ -4,7 +4,7 @@ using UnityEngine;
 public class CompositeVideo : MonoBehaviour, VideoInterface
 {
 
-    [SerializeField] KeyFrameManager KeyFrameManager;
+    [SerializeField] OldKeyFrameManager KeyFrameManager;
     public RenderTexture rt;
     Coroutine compositeCoroutine;
 

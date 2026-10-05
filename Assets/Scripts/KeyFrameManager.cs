@@ -50,6 +50,18 @@ public class KeyFrameManager : MonoBehaviour
     [SerializeField] EnvironmentDepthManager environmentDepthManager; // Gate della cattura su IsDepthAvailable
     [SerializeField] Text debugText;
 
+    // Tasto che accende/spegne lo scan. Nella scena Streaming A/B e X/Y sono usati da Movement.
+    [SerializeField] OVRInput.RawButton scanToggleButton = OVRInput.RawButton.A;
+    [SerializeField] bool scanEnabledOnStart = true;
+    [SerializeField] bool saveToDisk = true;         // persistentDataPath/keyframes/N
+    [SerializeField] bool verboseLog = true;         // log a ogni frame (spegnerlo se c'è DebugLogOverlay)
+
+    // Invocato per ogni keyframe catturato con i file già codificati (nome -> contenuto),
+    // gli stessi che finiscono nella cartella su disco. Lo usa XrmKeyframeUploader.
+    // I byte[] non vanno modificati: possono essere letti da un altro thread.
+    public event System.Action<int, IReadOnlyDictionary<string, byte[]>> KeyframeEncoded;
+    public bool ScanEnabled => _scanEnabled;
+
     private RenderTexture target;
     private RenderTexture rightTarget;
 
@@ -79,6 +91,7 @@ public class KeyFrameManager : MonoBehaviour
         // altrimenti il gate IsDepthAvailable sotto blocca ogni cattura.
         if (environmentDepthManager == null)
             environmentDepthManager = FindFirstObjectByType<EnvironmentDepthManager>();
+        _scanEnabled = scanEnabledOnStart;
     }
 
     void Start()
@@ -99,19 +112,26 @@ public class KeyFrameManager : MonoBehaviour
         Application.onBeforeRender -= CaptureKeyframe;
     }
 
+    void OnDestroy()
+    {
+        // Render target creati alla prima cattura e riusati: vanno liberati a mano.
+        if (target != null) Destroy(target);
+        if (rightTarget != null) Destroy(rightTarget);
+    }
+
     void Update()
     {
         // DEBUG: tasto A del controller destro (RawButton.A = A fisico del Touch destro).
         // Un solo tasto per tutto. GetDown = solo il frame della pressione (un click = un'azione).
         //   - scan SPENTO -> lo riaccende, niente invio.
         //   - scan ACCESO -> lo spegne E invia i keyframe (fine scan).
-        if (OVRInput.GetDown(OVRInput.RawButton.A))
+        if (scanToggleButton != OVRInput.RawButton.None && OVRInput.GetDown(scanToggleButton))
         {
             if (!_scanEnabled)
             {
                 // era spento -> riparte lo scan
                 _scanEnabled = true;
-                Debug.Log("[SCAN] Scan ABILITATO (tasto A)");
+                Debug.Log($"[SCAN] Scan ABILITATO ({scanToggleButton})");
                 if (debugText != null)
                     debugText.text = $"Scan attiva, kf = {_keyframeCount}";
             }
@@ -119,7 +139,7 @@ public class KeyFrameManager : MonoBehaviour
             {
                 // era acceso -> ferma lo scan e invia
                 _scanEnabled = false;
-                Debug.Log("[SEND] Scan DISABILITATO, avvio invio keyframe (tasto A)");
+                Debug.Log($"[SEND] Scan DISABILITATO, avvio invio keyframe ({scanToggleButton})");
                 // _keyframeCount = numero di keyframe catturati/salvati = quelli che verranno inviati.
                 if (debugText != null)
                     debugText.text = $"Scan disattivata, kf inviati: {_keyframeCount}";
@@ -133,7 +153,8 @@ public class KeyFrameManager : MonoBehaviour
     [BeforeRenderOrder(100)]
     void CaptureKeyframe()
     {
-        Debug.Log("-----------CaptureKeyframe() called at time: " + System.DateTime.Now.ToString("HH:mm:ss.fff") + "-----------");
+        if (verboseLog)
+            Debug.Log("-----------CaptureKeyframe() called at time: " + System.DateTime.Now.ToString("HH:mm:ss.fff") + "-----------");
 
         // === GATE SCAN ON/OFF ===
         // DEBUG: se lo scan e' disabilitato (tasto A, vedi Update()) non catturiamo nulla.
@@ -282,7 +303,7 @@ public class KeyFrameManager : MonoBehaviour
         if (PosDev > MaximumPosDeviation || RotDev > MaximumRotDeviation)
         {
             isFrameOk = false;
-            Debug.Log($"Head Pose Deviation Exceeded: PosDev={PosDev} m/s, RotDev={RotDev} deg/s");
+            if (verboseLog) Debug.Log($"Head Pose Deviation Exceeded: PosDev={PosDev} m/s, RotDev={RotDev} deg/s");
         }
         else
         {
@@ -470,48 +491,59 @@ public class KeyFrameManager : MonoBehaviour
 
         //Debug.Log("----------------PCA TIME WHEN SAVING KEYFRAME:" + passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff"));
         //Debug.Log("----------------UNITY TIME WHEN SAVING KEYFRAME:" + System.DateTime.Now.ToString("HH:mm:ss:fff"));
-        SaveKeyframeToDisk(kf, _keyframeCount++);
+        try
+        {
+            SaveKeyframeToDisk(kf, _keyframeCount++);
+        }
+        finally
+        {
+            // Anche se il salvataggio (o chi ascolta KeyframeEncoded) lancia un'eccezione: senza
+            // finally le texture resterebbero in RAM e al frame dopo si ritenterebbe la cattura
+            // dello stesso frame depth, perdendone altre 10 a ogni tentativo.
 
-        // Marca il frame depth come consumato: il prossimo keyframe userà un id diverso.
-        _lastCapturedDepthTexId = depthTexId;
+            // Marca il frame depth come consumato: il prossimo keyframe userà un id diverso.
+            _lastCapturedDepthTexId = depthTexId;
 
-        // Distrugge subito le texture — sono già su disco, nessun motivo di tenerle in RAM.
-        Destroy(kf.rgb);
-        Destroy(kf.rgbRight);
-        Destroy(kf.rawDepth);
-        Destroy(kf.alignedDepth);
-        Destroy(kf.rgbDepthRes);
-        Destroy(kf.rgbRightDepthRes);
-        Destroy(kf.alignedDepthDepthRes);
-        Destroy(kf.alignedDepthSobel);
-        Destroy(kf.alignedDepthSobelDepthRes);
-        Destroy(kf.depthColored);
+            // Distrugge subito le texture — i byte codificati sono già stati prodotti.
+            Destroy(kf.rgb);
+            Destroy(kf.rgbRight);
+            Destroy(kf.rawDepth);
+            Destroy(kf.alignedDepth);
+            Destroy(kf.rgbDepthRes);
+            Destroy(kf.rgbRightDepthRes);
+            Destroy(kf.alignedDepthDepthRes);
+            Destroy(kf.alignedDepthSobel);
+            Destroy(kf.alignedDepthSobelDepthRes);
+            Destroy(kf.depthColored);
+        }
         Debug.Log($"Keyframe captured: {_keyframeCount} | pos: {pose.position} | depthTexId: {depthTexId}");
     }
 
+    // Codifica tutti i file del keyframe in memoria, poi li salva su disco (se saveToDisk),
+    // li manda a HttpManager (se presente in scena) e li notifica con KeyframeEncoded.
     void SaveKeyframeToDisk(CapturedKeyframe kf, int index)
     {
-        string dir = $"{Application.persistentDataPath}/keyframes/{index}";
-        System.IO.Directory.CreateDirectory(dir);
+        var files = new Dictionary<string, byte[]>();
+        void AddText(string name, string text) => files[name] = System.Text.Encoding.UTF8.GetBytes(text);
 
         // RGB
         byte[] rgbBytes = kf.rgb.EncodeToPNG();
-        System.IO.File.WriteAllBytes($"{dir}/LeftRGB.png", rgbBytes);
+        files["LeftRGB.png"] = rgbBytes;
 
         // RGB destro
         byte[] rgbRightBytes = kf.rgbRight.EncodeToPNG();
-        System.IO.File.WriteAllBytes($"{dir}/RightRGB.png", rgbRightBytes);
+        files["RightRGB.png"] = rgbRightBytes;
 
         // Depth raw, non registrata, risoluzione nativa depth camera, float EXR.
         byte[] rawDepthBytes = kf.rawDepth.EncodeToEXR();
-        System.IO.File.WriteAllBytes($"{dir}/rawDepth.exr", rawDepthBytes);
+        files["rawDepth.exr"] = rawDepthBytes;
 
         // Depth allineata, registrata, risoluzione frame RGB, EXR float32 + ZIP:
         // completamente LOSSLESS (mantiene i 32 bit pieni, ZIP comprime senza perdita).
         // ~4-6 MB invece di ~12 MB del float32 non compresso, senza perdere precisione.
         byte[] alignedDepthBytes = kf.alignedDepth.EncodeToEXR(
             Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-        System.IO.File.WriteAllBytes($"{dir}/alignedDepth.exr", alignedDepthBytes);
+        files["alignedDepth.exr"] = alignedDepthBytes;
 
 
         // === Coppia a risoluzione DEPTH ===
@@ -519,18 +551,18 @@ public class KeyFrameManager : MonoBehaviour
         //if (kf.rgbDepthRes != null)
         //{
             byte[] rgbDepthResBytes = kf.rgbDepthRes.EncodeToPNG();
-            System.IO.File.WriteAllBytes($"{dir}/LeftRGB_depthRes.png", rgbDepthResBytes);
+            files["LeftRGB_depthRes.png"] = rgbDepthResBytes;
         //}
         if (kf.rgbRightDepthRes != null)
         {
             byte[] rgbRightDepthResBytes = kf.rgbRightDepthRes.EncodeToPNG();
-            System.IO.File.WriteAllBytes($"{dir}/RightRGB_depthRes.png", rgbRightDepthResBytes);
+            files["RightRGB_depthRes.png"] = rgbRightDepthResBytes;
         }
         // Depth allineata all'RGB ma renderizzata a risoluzione depth, float EXR.
         //if (kf.alignedDepthDepthRes != null)
         //{
             byte[] alignedDepthResBytes = kf.alignedDepthDepthRes.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            System.IO.File.WriteAllBytes($"{dir}/alignedDepth_depthRes.exr", alignedDepthResBytes);
+            files["alignedDepth_depthRes.exr"] = alignedDepthResBytes;
         //}
 
         // Depth allineata col gate del gradiente relativo (edge-bleeding azzerato),
@@ -538,19 +570,19 @@ public class KeyFrameManager : MonoBehaviour
         //if (kf.alignedDepthSobel != null)
         //{
             byte[] sobelBytes = kf.alignedDepthSobel.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            System.IO.File.WriteAllBytes($"{dir}/alignedDepth_sobel.exr", sobelBytes);
+            files["alignedDepth_sobel.exr"] = sobelBytes;
         //}
         //if (kf.alignedDepthSobelDepthRes != null)
         //{
             byte[] sobelDepthResBytes = kf.alignedDepthSobelDepthRes.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            System.IO.File.WriteAllBytes($"{dir}/alignedDepth_sobel_depthRes.exr", sobelDepthResBytes);
+            files["alignedDepth_sobel_depthRes.exr"] = sobelDepthResBytes;
         //}
 
         // Point cloud colorato (depth -> 3D -> colore RGB), risoluzione depth, PNG.
         if (kf.depthColored != null)
         {
             byte[] coloredBytes = kf.depthColored.EncodeToPNG();
-            System.IO.File.WriteAllBytes($"{dir}/Colored.png", coloredBytes);
+            files["Colored.png"] = coloredBytes;
         }
 
         // Pose PCA sinistra/destra (world/tracking space) — usate per
@@ -613,21 +645,33 @@ public class KeyFrameManager : MonoBehaviour
 
         float CamDistance = Vector3.Distance(LeftPose.position, rightCamPose.position);
 
-        // ---------------INVIO FRAME BY FRAME---------------- 
-        HttpManager.httpMng.SetRGBTexture(rgbBytes, rgbDepthResBytes, alignedDepthBytes, alignedDepthResBytes, sobelDepthResBytes, pose, RGBIntrinsics, reproj, zbuf, depthMeta);
+        AddText("LeftCamPose.json", pose);
+        AddText("RightCamPose.json", rightPose);
+        AddText("LeftIntrinsics.json", RGBIntrinsics);
+        AddText("RightIntrinsics.json", RGBRightInstrinsics);
 
-        System.IO.File.WriteAllText($"{dir}/LeftCamPose.json", pose);
-        System.IO.File.WriteAllText($"{dir}/RightCamPose.json", rightPose);
-        System.IO.File.WriteAllText($"{dir}/LeftIntrinsics.json", RGBIntrinsics);
-        System.IO.File.WriteAllText($"{dir}/RightIntrinsics.json", RGBRightInstrinsics);
+        AddText("PassthroughCamDistance.txt",
+            CamDistance.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        System.IO.File.WriteAllText($"{dir}/PassthroughCamDistance.txt",
-        CamDistance.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        AddText("reprojection.json", reproj);
+        AddText("reprojection_inverse.json", reprojInverse);
+        AddText("zbuffer_params.json", zbuf);
+        AddText("depth_meta.json", depthMeta);
 
-        System.IO.File.WriteAllText($"{dir}/reprojection.json", reproj);
-        System.IO.File.WriteAllText($"{dir}/reprojection_inverse.json", reprojInverse);
-        System.IO.File.WriteAllText($"{dir}/zbuffer_params.json", zbuf);
-        System.IO.File.WriteAllText($"{dir}/depth_meta.json", depthMeta);
+        if (saveToDisk)
+        {
+            string dir = $"{Application.persistentDataPath}/keyframes/{index}";
+            System.IO.Directory.CreateDirectory(dir);
+            foreach (var f in files)
+                System.IO.File.WriteAllBytes($"{dir}/{f.Key}", f.Value);
+        }
+
+        // ---------------INVIO FRAME BY FRAME----------------
+        // HttpManager c'è solo nella scena 3D Reconstruction.
+        if (HttpManager.httpMng != null)
+            HttpManager.httpMng.SetRGBTexture(rgbBytes, rgbDepthResBytes, alignedDepthBytes, alignedDepthResBytes, sobelDepthResBytes, pose, RGBIntrinsics, reproj, zbuf, depthMeta);
+
+        KeyframeEncoded?.Invoke(index, files);
     }
 
     void RetrieveAndSendData()
