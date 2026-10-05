@@ -3,6 +3,7 @@ using Meta.XR.EnvironmentDepth;
 using Unity.XR.Oculus;
 using UnityEngine;
 using UnityEngine.UI;
+using static Unity.XR.Oculus.Utils;
 
 public class GetDepthMaps : MonoBehaviour
 {
@@ -10,6 +11,8 @@ public class GetDepthMaps : MonoBehaviour
     [SerializeField] private RawImage rawImage;
     private RenderTexture _previewRT;
     [SerializeField] Material depthMaterial;
+
+    [SerializeField] Text timestampText;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -20,6 +23,8 @@ public class GetDepthMaps : MonoBehaviour
     void Update()
     {
         UpdateDepthPreview();
+        var depthPose = OVRPlugin.GetNodePoseStateImmediate(OVRPlugin.Node.Head).Pose.ToOVRPose();
+        //timestampText.text = "Pose: " + depthPose.position;
     }
 
     private Texture GetDepthTexture()
@@ -44,5 +49,16 @@ public class GetDepthMaps : MonoBehaviour
         }
 
         Graphics.Blit(depthTex, _previewRT, depthMaterial);
+    }
+
+    private void RetrieveDepthData()
+    {
+        //Utils.SetupEnvironmentDepth(EnvironmentDepthCreateParams createParams)
+        //Utils.ShutdownEnvironmentDepth()
+
+        var data = Utils.GetEnvironmentDepthFrameDesc(0);
+
+        Debug.Log("FOV Data: " + data.fovDownAngle + " " + data.fovLeftAngle + " " + data.fovRightAngle);
+
     }
 }

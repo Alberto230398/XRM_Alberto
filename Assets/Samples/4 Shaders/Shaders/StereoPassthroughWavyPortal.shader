@@ -18,24 +18,22 @@ Shader "QuestCameraKit/CameraMapping/StereoPassthroughWavyPortal"
 
     SubShader
     {
-        Tags { "RenderPipeline"="UniversalPipeline" "Queue"="Geometry" "RenderType"="Opaque" }
+        Tags { "Queue"="Geometry" "RenderType"="Opaque" }
 
         Pass
         {
             Name "StereoPassthroughWavyPortal"
             Cull Off
 
-            HLSLPROGRAM
+            CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "UnityCG.cginc"
 
-            TEXTURE2D(_LeftTex);
-            SAMPLER(sampler_LeftTex);
-            TEXTURE2D(_RightTex);
-            SAMPLER(sampler_RightTex);
+            sampler2D _LeftTex;
+            sampler2D _RightTex;
 
             float4 _Tint;
             float _TintStrength;
@@ -83,8 +81,8 @@ Shader "QuestCameraKit/CameraMapping/StereoPassthroughWavyPortal"
                 Varyings OUT;
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
 
-                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
-                OUT.worldPos = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionCS = UnityObjectToClipPos(IN.positionOS.xyz);
+                OUT.worldPos = mul(unity_ObjectToWorld, IN.positionOS).xyz;
                 return OUT;
             }
 
@@ -173,14 +171,14 @@ Shader "QuestCameraKit/CameraMapping/StereoPassthroughWavyPortal"
                 }
 
                 half4 color = eyeIndex == 0
-                    ? SAMPLE_TEXTURE2D(_LeftTex, sampler_LeftTex, uv)
-                    : SAMPLE_TEXTURE2D(_RightTex, sampler_RightTex, uv);
+                    ? tex2D(_LeftTex, uv)
+                    : tex2D(_RightTex, uv);
 
                 float edgeMask = smoothstep(0.0, _EdgeFeather, min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y)));
                 half3 tintedRgb = lerp(color.rgb, color.rgb * _Tint.rgb, _TintStrength);
                 return half4(tintedRgb * edgeMask, 1.0);
             }
-            ENDHLSL
+            ENDCG
         }
     }
 

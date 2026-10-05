@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: New Material
+  m_Name: PasstroughMat
   m_Shader: {fileID: 4800000, guid: 1cd9252a2697a134a8147104e0d383a5, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0

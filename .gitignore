@@ -19,3 +19,7 @@ PerformanceTestRun*.*
 StreamingAssets*
 buildInfo.txt
 Packages/packages-lock.json
+RGBD_alignemnt.md
+.kilo
+.vscode
+.DS_Store

@@ -1,0 +1,462 @@
+{
+  "GetDepthMaps.cs": {
+    "mtime": 1783669818.3708699,
+    "ast_hash": "5e69e0322232d5dc6c753d77106d76ae",
+    "semantic_hash": "5e69e0322232d5dc6c753d77106d76ae"
+  },
+  "MeshGenerator.cs": {
+    "mtime": 1781508256.8752956,
+    "ast_hash": "32c97baea771be253b9737a7371b4511",
+    "semantic_hash": "32c97baea771be253b9737a7371b4511"
+  },
+  "PassthroughBridge.cs": {
+    "mtime": 1781508256.8762264,
+    "ast_hash": "194516e4a905a0bf6e498292984bb9bf",
+    "semantic_hash": "194516e4a905a0bf6e498292984bb9bf"
+  },
+  "PassthroughCameraApiSamples/BrightnessEstimation/Scripts/BrightnessEstimationDebugger.cs": {
+    "mtime": 1781508256.8783078,
+    "ast_hash": "7225753e8fca3abc55dca5395c4a99a4",
+    "semantic_hash": "7225753e8fca3abc55dca5395c4a99a4"
+  },
+  "PassthroughCameraApiSamples/BrightnessEstimation/Scripts/BrightnessEstimationManager.cs": {
+    "mtime": 1781508256.8784647,
+    "ast_hash": "9af1fc97cfc0afc1fd761b8454032707",
+    "semantic_hash": "9af1fc97cfc0afc1fd761b8454032707"
+  },
+  "PassthroughCameraApiSamples/CameraToWorld/Scripts/CameraToWorldCameraCanvas.cs": {
+    "mtime": 1781508256.880355,
+    "ast_hash": "0217fc57b21cd0f230e5baf4214dbd7c",
+    "semantic_hash": "0217fc57b21cd0f230e5baf4214dbd7c"
+  },
+  "PassthroughCameraApiSamples/CameraToWorld/Scripts/CameraToWorldManager.cs": {
+    "mtime": 1781508256.8805497,
+    "ast_hash": "36a3f57fcdf1ad6ab18218476a2ae1fa",
+    "semantic_hash": "36a3f57fcdf1ad6ab18218476a2ae1fa"
+  },
+  "PassthroughCameraApiSamples/CameraToWorld/Scripts/CameraToWorldRayRenderer.cs": {
+    "mtime": 1781508256.8807383,
+    "ast_hash": "15277fe40cb3b997de85f833c50bea51",
+    "semantic_hash": "15277fe40cb3b997de85f833c50bea51"
+  },
+  "PassthroughCameraApiSamples/CameraViewer/Scripts/CameraViewerManager.cs": {
+    "mtime": 1781508256.8814478,
+    "ast_hash": "dd123cdc0284b4b52b8d70ca1dd78323",
+    "semantic_hash": "dd123cdc0284b4b52b8d70ca1dd78323"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Scripts/DetectionManager.cs": {
+    "mtime": 1781508256.884728,
+    "ast_hash": "57ba28a9081b6c488899c246e4a8cab6",
+    "semantic_hash": "57ba28a9081b6c488899c246e4a8cab6"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Scripts/DetectionSpawnMarkerAnim.cs": {
+    "mtime": 1781508256.8849077,
+    "ast_hash": "b80b5743a0e0c4b9f75b0acf68bad2df",
+    "semantic_hash": "b80b5743a0e0c4b9f75b0acf68bad2df"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Scripts/DetectionUiBlinkText.cs": {
+    "mtime": 1781508256.885056,
+    "ast_hash": "5449a5ba8bf5910a288ed7fe346be291",
+    "semantic_hash": "5449a5ba8bf5910a288ed7fe346be291"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Scripts/DetectionUiMenuManager.cs": {
+    "mtime": 1781508256.8852158,
+    "ast_hash": "63ecb178916fac04fa27bf71a8875bc1",
+    "semantic_hash": "63ecb178916fac04fa27bf71a8875bc1"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Scripts/DetectionUiTextWritter.cs": {
+    "mtime": 1781508256.885355,
+    "ast_hash": "015ae8bb38e113b52b4d42266dc8905a",
+    "semantic_hash": "015ae8bb38e113b52b4d42266dc8905a"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/EnvironmentRaycast/Scripts/EnvironmentRayCastSampleManager.cs": {
+    "mtime": 1781508256.886226,
+    "ast_hash": "4caa0aa9abde70fc6f3017b87aed5703",
+    "semantic_hash": "4caa0aa9abde70fc6f3017b87aed5703"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/SentisInference/Editor/SentisModelEditorConverter.cs": {
+    "mtime": 1781508256.886841,
+    "ast_hash": "a19ad6a52520ba00985268fc1c0c72a3",
+    "semantic_hash": "a19ad6a52520ba00985268fc1c0c72a3"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/SentisInference/Scripts/SentisInferenceRunManager.cs": {
+    "mtime": 1781508256.9196827,
+    "ast_hash": "081581da9004e6646ea12e923fa0c33c",
+    "semantic_hash": "081581da9004e6646ea12e923fa0c33c"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/SentisInference/Scripts/SentisInferenceUiManager.cs": {
+    "mtime": 1781508256.9198587,
+    "ast_hash": "9ef83eb11ca023f883041c13067cfe02",
+    "semantic_hash": "9ef83eb11ca023f883041c13067cfe02"
+  },
+  "PassthroughCameraApiSamples/PassthroughCamera/Scripts/InputManager.cs": {
+    "mtime": 1781508256.92054,
+    "ast_hash": "41e9ee6ae77ba08fa3a36f8cdb17441f",
+    "semantic_hash": "41e9ee6ae77ba08fa3a36f8cdb17441f"
+  },
+  "PassthroughCameraApiSamples/PassthroughCamera/Scripts/PassthroughCameraDebugger.cs": {
+    "mtime": 1781508256.9207008,
+    "ast_hash": "ba90c72042d5f387245b14b3cc9aabae",
+    "semantic_hash": "ba90c72042d5f387245b14b3cc9aabae"
+  },
+  "PassthroughCameraApiSamples/PassthroughCamera/Scripts/RequestPermissionsOnce.cs": {
+    "mtime": 1781508256.9208546,
+    "ast_hash": "bdede556039cef9c98852365f594220b",
+    "semantic_hash": "bdede556039cef9c98852365f594220b"
+  },
+  "PassthroughCameraApiSamples/ShaderSample/Scripts/ShaderSampleManager.cs": {
+    "mtime": 1781508256.9219916,
+    "ast_hash": "ac47bb69e91a45f7eae8883c57d0ca1c",
+    "semantic_hash": "ac47bb69e91a45f7eae8883c57d0ca1c"
+  },
+  "PassthroughCameraApiSamples/StartScene/Scripts/DebugUIBuilder.cs": {
+    "mtime": 1781508256.9310908,
+    "ast_hash": "2630a298a381a571deb45e79102d7abf",
+    "semantic_hash": "2630a298a381a571deb45e79102d7abf"
+  },
+  "PassthroughCameraApiSamples/StartScene/Scripts/HandedInputSelector.cs": {
+    "mtime": 1781508256.9312835,
+    "ast_hash": "856a3ad2399ded4b66a8809f5ed820c7",
+    "semantic_hash": "856a3ad2399ded4b66a8809f5ed820c7"
+  },
+  "PassthroughCameraApiSamples/StartScene/Scripts/LaserPointer.cs": {
+    "mtime": 1781508256.9314291,
+    "ast_hash": "710b0a1dfe8d7aca818face12e46be96",
+    "semantic_hash": "710b0a1dfe8d7aca818face12e46be96"
+  },
+  "PassthroughCameraApiSamples/StartScene/Scripts/ReturnToStartScene.cs": {
+    "mtime": 1781508256.9315722,
+    "ast_hash": "733d5cbc39fd508593ab3fb0ffaa49fc",
+    "semantic_hash": "733d5cbc39fd508593ab3fb0ffaa49fc"
+  },
+  "PassthroughCameraApiSamples/StartScene/Scripts/StartMenu.cs": {
+    "mtime": 1781508256.9317193,
+    "ast_hash": "409cd9060accdb59965ce998a6c4720b",
+    "semantic_hash": "409cd9060accdb59965ce998a6c4720b"
+  },
+  "Samples/1 ColorPicker/Scripts/ColorPicker.cs": {
+    "mtime": 1781508256.9386818,
+    "ast_hash": "ea47fe10785607515b869b706beead85",
+    "semantic_hash": "ea47fe10785607515b869b706beead85"
+  },
+  "Samples/2 ObjectDetection/Scripts/ObjectDetector.cs": {
+    "mtime": 1781508256.9459789,
+    "ast_hash": "186262dac5bbe6e1a203c2deeab7e656",
+    "semantic_hash": "186262dac5bbe6e1a203c2deeab7e656"
+  },
+  "Samples/2 ObjectDetection/Scripts/ObjectRenderer.cs": {
+    "mtime": 1781508256.9461384,
+    "ast_hash": "e79d09311db2aa72b00554aaf2331b82",
+    "semantic_hash": "e79d09311db2aa72b00554aaf2331b82"
+  },
+  "Samples/2 ObjectDetection/Scripts/PassthroughHandler.cs": {
+    "mtime": 1781508256.9463015,
+    "ast_hash": "8980007ddbe918a9d35e7cef7f00bf5a",
+    "semantic_hash": "8980007ddbe918a9d35e7cef7f00bf5a"
+  },
+  "Samples/2 ObjectDetection/Scripts/YOLOv9Labels.cs": {
+    "mtime": 1781508256.9464533,
+    "ast_hash": "6e98140288571ea6617a1be2e731f124",
+    "semantic_hash": "6e98140288571ea6617a1be2e731f124"
+  },
+  "Samples/3 QRCodeTracking/Scripts/Editor/ZXingDefineSymbolChecker.cs": {
+    "mtime": 1781508256.947821,
+    "ast_hash": "b6010a99c5df5365b88ca1559290c4dc",
+    "semantic_hash": "b6010a99c5df5365b88ca1559290c4dc"
+  },
+  "Samples/3 QRCodeTracking/Scripts/QrCodeDisplayManager.cs": {
+    "mtime": 1781508256.9479702,
+    "ast_hash": "df246891786fe4fc48d7b2513dc55541",
+    "semantic_hash": "df246891786fe4fc48d7b2513dc55541"
+  },
+  "Samples/3 QRCodeTracking/Scripts/QrCodeScanner.cs": {
+    "mtime": 1781508256.9481137,
+    "ast_hash": "a56646bd771f89835bd1e5a35ec7a277",
+    "semantic_hash": "a56646bd771f89835bd1e5a35ec7a277"
+  },
+  "Samples/4 Shaders/Scripts/StereoCameraMappingController.cs": {
+    "mtime": 1781508256.9492393,
+    "ast_hash": "893367c1c9e1405afaf90c8d899d8bf9",
+    "semantic_hash": "893367c1c9e1405afaf90c8d899d8bf9"
+  },
+  "Samples/5 ImageLLM/Scripts/AudioPlayer.cs": {
+    "mtime": 1781508256.954259,
+    "ast_hash": "fe31358c16f9f7835a72f3a8d076f146",
+    "semantic_hash": "fe31358c16f9f7835a72f3a8d076f146"
+  },
+  "Samples/5 ImageLLM/Scripts/ImageOpenAIConnector.cs": {
+    "mtime": 1781508256.9544158,
+    "ast_hash": "fd0aea5dc80cc5daef2d72ac1ac69cda",
+    "semantic_hash": "fd0aea5dc80cc5daef2d72ac1ac69cda"
+  },
+  "Samples/5 ImageLLM/Scripts/STTManager.cs": {
+    "mtime": 1781508256.954569,
+    "ast_hash": "9313d59607f7fb4b53e7847730e65c7a",
+    "semantic_hash": "9313d59607f7fb4b53e7847730e65c7a"
+  },
+  "Samples/5 ImageLLM/Scripts/SaveWav.cs": {
+    "mtime": 1781508256.9547172,
+    "ast_hash": "aaaea14f7a6690b904970cbbe59e110b",
+    "semantic_hash": "aaaea14f7a6690b904970cbbe59e110b"
+  },
+  "Samples/5 ImageLLM/Scripts/TTSManager.cs": {
+    "mtime": 1781508256.9548666,
+    "ast_hash": "3d4c4eb91d5d573cade90f51e8ecc92f",
+    "semantic_hash": "3d4c4eb91d5d573cade90f51e8ecc92f"
+  },
+  "Samples/5 ImageLLM/Scripts/VoiceCommandHandler.cs": {
+    "mtime": 1781508256.9550216,
+    "ast_hash": "4516a7a5425ae8e74ca2a4b322f1a462",
+    "semantic_hash": "4516a7a5425ae8e74ca2a4b322f1a462"
+  },
+  "Samples/6 WebRTC/Scripts/Editor/WebRTCDefineSymbolChecker.cs": {
+    "mtime": 1781508256.955835,
+    "ast_hash": "4a898481cdcd05b95910a948fa615bdb",
+    "semantic_hash": "4a898481cdcd05b95910a948fa615bdb"
+  },
+  "Samples/6 WebRTC/Scripts/WebRTCController.cs": {
+    "mtime": 1783669818.3795185,
+    "ast_hash": "78f2bc68b7b1461c0235892c9069fc8f",
+    "semantic_hash": "78f2bc68b7b1461c0235892c9069fc8f"
+  },
+  "Samples/7 QRCodeDetection/Scripts/Bounded2DVisualizer.cs": {
+    "mtime": 1781508256.9581182,
+    "ast_hash": "95375c7606b77e0e1ca0a95e518a82f5",
+    "semantic_hash": "95375c7606b77e0e1ca0a95e518a82f5"
+  },
+  "Samples/7 QRCodeDetection/Scripts/QRCode.cs": {
+    "mtime": 1781508256.9582746,
+    "ast_hash": "c58ef0e29642db1b5a054098d15f6f75",
+    "semantic_hash": "c58ef0e29642db1b5a054098d15f6f75"
+  },
+  "Samples/7 QRCodeDetection/Scripts/QRCodeFaceCamera.cs": {
+    "mtime": 1781508256.9584057,
+    "ast_hash": "359a24b540ffd65df19f08db34aa818d",
+    "semantic_hash": "359a24b540ffd65df19f08db34aa818d"
+  },
+  "Samples/7 QRCodeDetection/Scripts/QRCodeManager.cs": {
+    "mtime": 1781508256.9585238,
+    "ast_hash": "808e7d52bd9ed120441ce519bfc252b5",
+    "semantic_hash": "808e7d52bd9ed120441ce519bfc252b5"
+  },
+  "Samples/7 QRCodeDetection/Scripts/QRCodeSampleUI.cs": {
+    "mtime": 1781508256.9586642,
+    "ast_hash": "25694981ad3c66591e2276cd4c631df3",
+    "semantic_hash": "25694981ad3c66591e2276cd4c631df3"
+  },
+  "Samples/Common/Scripts/MarkerController.cs": {
+    "mtime": 1781508256.9594512,
+    "ast_hash": "31e91fe4269ecba5e114e40264b42dee",
+    "semantic_hash": "31e91fe4269ecba5e114e40264b42dee"
+  },
+  "Samples/Common/Scripts/MarkerPool.cs": {
+    "mtime": 1781508256.9595847,
+    "ast_hash": "ddc1c4133525e81b99dbc001491b9ea1",
+    "semantic_hash": "ddc1c4133525e81b99dbc001491b9ea1"
+  },
+  "Scripts/DebugTexts.cs": {
+    "mtime": 1783669818.3813415,
+    "ast_hash": "226fe7b06d436628bcfe57b03151a634",
+    "semantic_hash": "226fe7b06d436628bcfe57b03151a634"
+  },
+  "Scripts/KeyFrameManager.cs": {
+    "mtime": 1783686592.3985898,
+    "ast_hash": "bdd73b721838731a4952384e0728ac03",
+    "semantic_hash": "bdd73b721838731a4952384e0728ac03"
+  },
+  "Scripts/MetaAccessor.cs": {
+    "mtime": 1783669818.3819513,
+    "ast_hash": "755ab16a46f8104d305138207dc3010b",
+    "semantic_hash": "755ab16a46f8104d305138207dc3010b"
+  },
+  "Scripts/PassthroughVideo.cs": {
+    "mtime": 1783669818.3827455,
+    "ast_hash": "812b688d01bb64621158d93da412efed",
+    "semantic_hash": "812b688d01bb64621158d93da412efed"
+  },
+  "Scripts/PasstroughManager.cs": {
+    "mtime": 1783669818.3828545,
+    "ast_hash": "577377090d110f3072cc8353cadd794f",
+    "semantic_hash": "577377090d110f3072cc8353cadd794f"
+  },
+  "Scripts/VideoInterface.cs": {
+    "mtime": 1781508256.9609754,
+    "ast_hash": "7d28d2e0605bbbf37523ac2f2ef02081",
+    "semantic_hash": "7d28d2e0605bbbf37523ac2f2ef02081"
+  },
+  "Scripts/VirtualCamera.cs": {
+    "mtime": 1783669818.383572,
+    "ast_hash": "ad2b24eabcbd53adf422ecf485b1cca8",
+    "semantic_hash": "ad2b24eabcbd53adf422ecf485b1cca8"
+  },
+  "VideoCompositor.cs": {
+    "mtime": 1783669818.384148,
+    "ast_hash": "38806a885fffc4ec50f2efae3eee6215",
+    "semantic_hash": "38806a885fffc4ec50f2efae3eee6215"
+  },
+  "VideoManager.cs": {
+    "mtime": 1783669818.3855991,
+    "ast_hash": "7c40530fcca605623c6bd2f10b34e692",
+    "semantic_hash": "7c40530fcca605623c6bd2f10b34e692"
+  },
+  "PassthroughCameraApiSamples/LICENSE.txt": {
+    "mtime": 1781508256.8816104,
+    "ast_hash": "a584f2fddc99801cd940480f747de17d",
+    "semantic_hash": "a584f2fddc99801cd940480f747de17d"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/SentisInference/Model/SentisYoloClasses.txt": {
+    "mtime": 1781508256.8870862,
+    "ast_hash": "8fc50561361f8bcf96b0177086e7616c",
+    "semantic_hash": "8fc50561361f8bcf96b0177086e7616c"
+  },
+  "PassthroughCameraApiSamples/StartScene/Fonts/Montserrat/OFL.txt": {
+    "mtime": 1781508256.9285293,
+    "ast_hash": "a4b8e8ac7c9ef1c6ac5fd47da8e28f97",
+    "semantic_hash": "a4b8e8ac7c9ef1c6ac5fd47da8e28f97"
+  },
+  "Samples/2 ObjectDetection/Resources/SentisYoloClasses.txt": {
+    "mtime": 1781508256.9392488,
+    "ast_hash": "8fc50561361f8bcf96b0177086e7616c",
+    "semantic_hash": "8fc50561361f8bcf96b0177086e7616c"
+  },
+  "PassthroughCameraApiSamples/CameraToWorld/Materials/CameraToWorldCircle_Outline.png": {
+    "mtime": 1781508256.87945,
+    "ast_hash": "3d04a720d0dc22592f79cb86f28ae8b7",
+    "semantic_hash": "3d04a720d0dc22592f79cb86f28ae8b7"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Textures/DetectionSpawnMarkerTexture.png": {
+    "mtime": 1781508256.8856213,
+    "ast_hash": "11e6cd66c2ffe97e847becaae88195d1",
+    "semantic_hash": "11e6cd66c2ffe97e847becaae88195d1"
+  },
+  "PassthroughCameraApiSamples/ShaderSample/Textures/waterNormal.jpg": {
+    "mtime": 1781508256.9229918,
+    "ast_hash": "cafa5adfe0dc768431c2ac55aa15df96",
+    "semantic_hash": "cafa5adfe0dc768431c2ac55aa15df96"
+  },
+  "PassthroughCameraApiSamples/ShaderSample/Textures/waterdetail.jpg": {
+    "mtime": 1781508256.92326,
+    "ast_hash": "0326d80891bb79f1171b392d4ef1a8d8",
+    "semantic_hash": "0326d80891bb79f1171b392d4ef1a8d8"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/BlackCubemap.png": {
+    "mtime": 1781508256.9322636,
+    "ast_hash": "dcaa93f41161742d7430be705dcb4f5d",
+    "semantic_hash": "dcaa93f41161742d7430be705dcb4f5d"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/Loading.png": {
+    "mtime": 1781508256.932472,
+    "ast_hash": "99bfd210349a9884aa24dd42fd68fb22",
+    "semantic_hash": "99bfd210349a9884aa24dd42fd68fb22"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/button.png": {
+    "mtime": 1781508256.932647,
+    "ast_hash": "08cee5a12d8252bc33d0801ac99a3beb",
+    "semantic_hash": "08cee5a12d8252bc33d0801ac99a3beb"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/button9slice.png": {
+    "mtime": 1781508256.9328008,
+    "ast_hash": "7180e4452c3f99ba6d4fc9d827084ed8",
+    "semantic_hash": "7180e4452c3f99ba6d4fc9d827084ed8"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/dialog.png": {
+    "mtime": 1781508256.9329565,
+    "ast_hash": "702abb08d1928b8ab9cbd0f463ae0047",
+    "semantic_hash": "702abb08d1928b8ab9cbd0f463ae0047"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/header.png": {
+    "mtime": 1781508256.9331174,
+    "ast_hash": "415493dfd9ccba1b27f868195cc93295",
+    "semantic_hash": "415493dfd9ccba1b27f868195cc93295"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/noise_01.png": {
+    "mtime": 1781508256.9335427,
+    "ast_hash": "1dfee6cc6425e40835fc4315dea0e246",
+    "semantic_hash": "1dfee6cc6425e40835fc4315dea0e246"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/panel_background.PNG": {
+    "mtime": 1781508256.933715,
+    "ast_hash": "555310bc493b108f4842d2d93edaf970",
+    "semantic_hash": "555310bc493b108f4842d2d93edaf970"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/radio_disabled.png": {
+    "mtime": 1781508256.9341118,
+    "ast_hash": "5b12d7de596d881b871355cc653b2ad2",
+    "semantic_hash": "5b12d7de596d881b871355cc653b2ad2"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/radio_off.png": {
+    "mtime": 1781508256.9342728,
+    "ast_hash": "067c469569fdd4094f2928b13d55f2a9",
+    "semantic_hash": "067c469569fdd4094f2928b13d55f2a9"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/radio_on.png": {
+    "mtime": 1781508256.934417,
+    "ast_hash": "0efa17f86874fdec4d62539cf5eee4c2",
+    "semantic_hash": "0efa17f86874fdec4d62539cf5eee4c2"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/radio_on_off.png": {
+    "mtime": 1781508256.9345841,
+    "ast_hash": "f1108db071e11af477108810b599673d",
+    "semantic_hash": "f1108db071e11af477108810b599673d"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/radio_over.png": {
+    "mtime": 1781508256.9347272,
+    "ast_hash": "f54f340892956c6efd0f064f4e7e7921",
+    "semantic_hash": "f54f340892956c6efd0f064f4e7e7921"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/separator.png": {
+    "mtime": 1781508256.9348695,
+    "ast_hash": "729e1af20a140a394b916f1fff391dc9",
+    "semantic_hash": "729e1af20a140a394b916f1fff391dc9"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/slider_bar.png": {
+    "mtime": 1781508256.9350276,
+    "ast_hash": "29eb8de2d8c579dbaac46346270443be",
+    "semantic_hash": "29eb8de2d8c579dbaac46346270443be"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/slider_slider.png": {
+    "mtime": 1781508256.9351687,
+    "ast_hash": "c30477527713b4da84678f6766554ade",
+    "semantic_hash": "c30477527713b4da84678f6766554ade"
+  },
+  "PassthroughCameraApiSamples/StartScene/Textures/translucent_01.png": {
+    "mtime": 1781508256.9353209,
+    "ast_hash": "09b07d4253af3b072de1822c68658c59",
+    "semantic_hash": "09b07d4253af3b072de1822c68658c59"
+  },
+  "Samples/Common/Textures/Marker.png": {
+    "mtime": 1781508256.959817,
+    "ast_hash": "2b637ff9f32c3b3626275694eb33660a",
+    "semantic_hash": "2b637ff9f32c3b3626275694eb33660a"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Audio/Detection_Ui_Accept.mp3": {
+    "mtime": 1781508256.8822577,
+    "ast_hash": "b44d5e14f934fac827cc28c7b2febf36",
+    "semantic_hash": "b44d5e14f934fac827cc28c7b2febf36"
+  },
+  "PassthroughCameraApiSamples/MultiObjectDetection/DetectionManager/Audio/Detection_Ui_Ambient.mp3": {
+    "mtime": 1781508256.8834026,
+    "ast_hash": "69be43bc294857c3c498cffdee88c124",
+    "semantic_hash": "69be43bc294857c3c498cffdee88c124"
+  },
+  "Samples/5 ImageLLM/Audio/ReceiveResponse.wav": {
+    "mtime": 1781508256.9511774,
+    "ast_hash": "48cec457a2842b4db342ce5a7efe615a",
+    "semantic_hash": "48cec457a2842b4db342ce5a7efe615a"
+  },
+  "Samples/5 ImageLLM/Audio/SendRequest.wav": {
+    "mtime": 1781508256.9519496,
+    "ast_hash": "a1b8c47e6f99c65699cdadf7363c5c8a",
+    "semantic_hash": "a1b8c47e6f99c65699cdadf7363c5c8a"
+  },
+  "Samples/5 ImageLLM/Audio/StartRequest.wav": {
+    "mtime": 1781508256.9527278,
+    "ast_hash": "ec5aa5ba3051aac901a9773c8f7cedb3",
+    "semantic_hash": "ec5aa5ba3051aac901a9773c8f7cedb3"
+  },
+  "Samples/5 ImageLLM/Audio/WaitingSound.mp3": {
+    "mtime": 1781508256.9530332,
+    "ast_hash": "61ae4f00c706495664587e8c2b28b358",
+    "semantic_hash": "61ae4f00c706495664587e8c2b28b358"
+  }
+}
