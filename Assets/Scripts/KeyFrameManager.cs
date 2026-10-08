@@ -10,6 +10,10 @@ using Unity.XR.Oculus;
 using static Unity.XR.Oculus.Utils;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
+using Unity.Collections;
+using UnityEngine.Experimental.Rendering;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 
 public class KeyFrameManager : MonoBehaviour
@@ -62,8 +66,16 @@ public class KeyFrameManager : MonoBehaviour
     public event System.Action<int, IReadOnlyDictionary<string, byte[]>> KeyframeEncoded;
     public bool ScanEnabled => _scanEnabled;
 
-    private RenderTexture target;
-    private RenderTexture rightTarget;
+    // Keyframe in lettura dalla GPU o in codifica. Ognuno trattiene ~70 MB di pixel grezzi
+    // finché non è codificato: oltre questo numero le nuove catture vengono rimandate.
+    [SerializeField] int maxKeyframesInFlight = 2;
+    int _inFlight;
+
+    // Lavoro che il thread di codifica rimanda al main thread (eseguito in Update).
+    readonly ConcurrentQueue<System.Action> _mainThreadQueue = new();
+
+    // Istanze separate dei materiali usati due volte per keyframe (risoluzione RGB e depth).
+    Material _alignedMatRgb, _alignedMatDepth, _sobelMatRgb, _sobelMatDepth;
 
     private int _keyframeCount = 0;
 
@@ -92,6 +104,17 @@ public class KeyFrameManager : MonoBehaviour
         if (environmentDepthManager == null)
             environmentDepthManager = FindFirstObjectByType<EnvironmentDepthManager>();
         _scanEnabled = scanEnabledOnStart;
+
+        if (alignedDepthMaterial != null)
+        {
+            _alignedMatRgb = new Material(alignedDepthMaterial);
+            _alignedMatDepth = new Material(alignedDepthMaterial);
+        }
+        if (sobelMaterial != null)
+        {
+            _sobelMatRgb = new Material(sobelMaterial);
+            _sobelMatDepth = new Material(sobelMaterial);
+        }
     }
 
     void Start()
@@ -114,13 +137,19 @@ public class KeyFrameManager : MonoBehaviour
 
     void OnDestroy()
     {
-        // Render target creati alla prima cattura e riusati: vanno liberati a mano.
-        if (target != null) Destroy(target);
-        if (rightTarget != null) Destroy(rightTarget);
+        // Completa i readback in volo: le callback rilasciano RenderTexture e NativeArray.
+        AsyncGPUReadback.WaitAllRequests();
+        if (_alignedMatRgb != null) Destroy(_alignedMatRgb);
+        if (_alignedMatDepth != null) Destroy(_alignedMatDepth);
+        if (_sobelMatRgb != null) Destroy(_sobelMatRgb);
+        if (_sobelMatDepth != null) Destroy(_sobelMatDepth);
     }
 
     void Update()
     {
+        while (_mainThreadQueue.TryDequeue(out var action))
+            action();
+
         // DEBUG: tasto A del controller destro (RawButton.A = A fisico del Touch destro).
         // Un solo tasto per tutto. GetDown = solo il frame della pressione (un click = un'azione).
         //   - scan SPENTO -> lo riaccende, niente invio.
@@ -248,9 +277,13 @@ public class KeyFrameManager : MonoBehaviour
         // === PRIMO KEYFRAME ===
         // Appena la depth diventa disponibile cattura il primo keyframe
 
+        // Troppi keyframe ancora in lettura/codifica: si salta (riprova ai frame successivi)
+        // invece di accumulare decine di MB di pixel in RAM.
+        if (_inFlight >= maxKeyframesInFlight) return;
+
         if (!_firstKeyframeCaptured)
         {
-            DoCaptureKeyframe(pose, depthTexId);
+            if (!DoCaptureKeyframe(pose, depthTexId)) return;
             _firstKeyframeCaptured = true;
             _lastKeyframePosition = pose.position;
             _lastKeyframeRotation = pose.rotation; 
@@ -268,7 +301,7 @@ public class KeyFrameManager : MonoBehaviour
             return;
 
         // Tutti i gate superati: catturiamo il keyframe.
-        DoCaptureKeyframe(pose, depthTexId);
+        if (!DoCaptureKeyframe(pose, depthTexId)) return;
         _lastKeyframePosition = pose.position;
         _lastKeyframeRotation = pose.rotation;
     }
@@ -368,7 +401,16 @@ public class KeyFrameManager : MonoBehaviour
         return true;
     }
 
-    void DoCaptureKeyframe(Pose pose, uint depthTexId)
+    // Cattura NON bloccante. Sul main thread restano solo i Blit (comandi GPU, costano ~nulla
+    // in CPU) e le richieste di AsyncGPUReadback. Prima ogni keyframe faceva ~10 ReadPixels (ognuno
+    // ferma la CPU finché la GPU non ha finito) + 5 PNG + 5 EXR + scrittura su disco nel render
+    // loop: centinaia di ms di freeze a keyframe, videochiamata compresa.
+    //   1) main:    Blit sui RenderTexture temporanei + AsyncGPUReadback.RequestIntoNativeArray
+    //   2) main:    callback dei readback (qualche frame dopo) → quando sono arrivati tutti...
+    //   3) thread:  codifica PNG/EXR (ImageConversion.EncodeNativeArrayTo* è thread-safe) + disco
+    //   4) main:    HttpManager + evento KeyframeEncoded (l'uploader usa API Unity)
+    // Restituisce false se il keyframe non è partito (dati non pronti).
+    bool DoCaptureKeyframe(Pose pose, uint depthTexId)
     {
         // Pose PCA — usate per la riproiezione RGB (world -> spazio colore),
         // NON per l'unprojection della depth (il sensore depth ha pose propria,
@@ -379,11 +421,11 @@ public class KeyFrameManager : MonoBehaviour
         // per la desc): sono scritti atomicamente dal manager Meta nello stesso
         // OnBeforeRender, quindi mutuamente coerenti col frame corrente.
         var depthTex = Shader.GetGlobalTexture("_EnvironmentDepthTexture");
-        if (depthTex == null) return;
+        if (depthTex == null) return false;
 
         Matrix4x4[] reproj = Shader.GetGlobalMatrixArray("_EnvironmentDepthReprojectionMatrices");
         Vector4 zParams = Shader.GetGlobalVector("_EnvironmentDepthZBufferParams");
-        if (reproj == null || reproj.Length == 0) return;
+        if (reproj == null || reproj.Length == 0) return false;
 
         // Matrice world -> clip della DEPTH camera (fov del sensore + createPose
         // del sensore già inclusi nel blocco proj*view). La sua inversa è
@@ -391,287 +433,283 @@ public class KeyFrameManager : MonoBehaviour
         // camera: è calibrata sul sensore depth.
         Matrix4x4 depthWorldToClip = reproj[0];
 
-        // Inizializza i render target RGB dalle dimensioni della camera texture
-        // (risoluzione RGB nativa). Producono la coppia a risoluzione RGB; le
-        // versioni a risoluzione depth sono generate a parte più sotto.
-        if (target == null)
-        {
-            var camTex = passthroughCameraLeft.GetTexture();
-            if (camTex == null) return;
-            target = new RenderTexture(camTex.width, camTex.height, 0, RenderTextureFormat.BGRA32);
-            target.Create();
-        }
+        Texture leftTex = passthroughCameraLeft.GetTexture();
+        Texture rightTex = passthroughCameraRight.GetTexture();
+        if (leftTex == null || rightTex == null) return false;
 
-        if (rightTarget == null)
+        if (verboseLog)
         {
-            var camTex = passthroughCameraRight.GetTexture();
-            if (camTex == null) return;
-            rightTarget = new RenderTexture(camTex.width, camTex.height, 0, RenderTextureFormat.BGRA32);
-            rightTarget.Create();
+            Debug.Log("----------------SYSTEM TIME WHEN SAVING RGB TEXTURE:" + System.DateTime.Now.ToString("HH:mm:ss:fff"));
+            Debug.Log("----------------PCA TIME WHEN TEXTURE WAS CREATED:" + passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff"));
         }
-
-        //Debug.Log("----------------PCA TIME WHEN SAVING RGB TEXTURE:" + passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff"));
-        // Blit dei frame camera correnti sui render target
-        Graphics.Blit(passthroughCameraLeft.GetTexture(), target);
-        Graphics.Blit(passthroughCameraRight.GetTexture(), rightTarget);
-        Debug.Log("----------------SYSTEM TIME WHEN SAVING RGB TEXTURE:" + System.DateTime.Now.ToString("HH:mm:ss:fff"));
-        Debug.Log("----------------PCA TIME WHEN TEXTURE WAS CREATED:" + passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff"));
 
         // Risoluzione dell'immagine RGB corrente (può differire dal sensore pieno):
         // serve per calcolare il crop di aspect-ratio come fa il SDK.
         Vector2 currentRes = passthroughCameraLeft.CurrentResolution;
         int depthW = depthTex.width, depthH = depthTex.height;
+        var intrinsics = passthroughCameraLeft.Intrinsics;
+        var rightIntrinsics = passthroughCameraRight.Intrinsics;
+
+        var job = new KeyframeJob { index = _keyframeCount++ };
 
         // === COPPIA A RISOLUZIONE RGB ===
         // RGB nativo + depth allineata renderizzata alla risoluzione RGB: combaciano
         // pixel-per-pixel senza stretch di aspect-ratio.
-        Texture2D rgb = SaveFrame(target);
-        Texture2D rgbRight = SaveFrame(rightTarget);
-        Texture2D alignedDepth = SaveAlignedDepthFrame(
-            depthTex, depthWorldToClip,
-            pose.position, pose.rotation,
-            passthroughCameraLeft.Intrinsics, zParams, currentRes,
-            (int)currentRes.x, (int)currentRes.y);
+        RenderTexture rgb = BlitColor(leftTex, leftTex.width, leftTex.height);
+        RenderTexture rgbRight = BlitColor(rightTex, rightTex.width, rightTex.height);
+        RenderTexture alignedDepth = RenderAlignedDepth(_alignedMatRgb,
+            depthTex, depthWorldToClip, pose.position, pose.rotation,
+            intrinsics, zParams, currentRes, (int)currentRes.x, (int)currentRes.y);
 
         // === COPPIA A RISOLUZIONE DEPTH ===
         // Stessa registrazione (crop ancora basato su currentRes), ma griglia di
         // output = risoluzione depth. RGB ricampionato dalla camera texture direttamente
         // alla risoluzione depth (un solo resample). Depth allineata idem: le due
         // restano pixel-per-pixel tra loro (stesso stretch di aspect-ratio).
-        Texture2D rgbDepthRes = SaveFrameAtResolution(passthroughCameraLeft.GetTexture(), depthW, depthH);
-        Texture2D rgbRightDepthRes = SaveFrameAtResolution(passthroughCameraRight.GetTexture(), depthW, depthH);
-        Texture2D alignedDepthDepthRes = SaveAlignedDepthFrame(
-            depthTex, depthWorldToClip,
-            pose.position, pose.rotation,
-            passthroughCameraLeft.Intrinsics, zParams, currentRes,
-            depthW, depthH);
+        RenderTexture rgbDepthRes = BlitColor(leftTex, depthW, depthH);
+        RenderTexture rgbRightDepthRes = BlitColor(rightTex, depthW, depthH);
+        RenderTexture alignedDepthDepthRes = RenderAlignedDepth(_alignedMatDepth,
+            depthTex, depthWorldToClip, pose.position, pose.rotation,
+            intrinsics, zParams, currentRes, depthW, depthH);
 
         // Depth allineata col gate del gradiente relativo (edge-bleeding azzerato).
         // Una versione per ciascuna risoluzione, così combacia pixel-per-pixel con la
-        // rispettiva depth allineata.
-        Texture2D alignedDepthSobel = SaveDepthSobel(alignedDepth, sobelTauRelRGBRes);
-        Texture2D alignedDepthSobelDepthRes = SaveDepthSobel(alignedDepthDepthRes, sobelTauRelDepthRes);
+        // rispettiva depth allineata. Ora parte direttamente dalla RT allineata sulla GPU.
+        RenderTexture alignedDepthSobel = RenderDepthSobel(_sobelMatRgb, alignedDepth, sobelTauRelRGBRes);
+        RenderTexture alignedDepthSobelDepthRes = RenderDepthSobel(_sobelMatDepth, alignedDepthDepthRes, sobelTauRelDepthRes);
 
         // Depth raw nativa + point cloud colorato (già a risoluzione depth).
-        Texture2D rawDepth = SaveDepthFrameRaw(depthTex);
-        Texture2D depthColored = SaveDepthColored(
-            depthTex, target, depthWorldToClip,
-            pose.position, pose.rotation, passthroughCameraLeft.Intrinsics, currentRes);
+        RenderTexture rawDepth = RenderDepthRaw(depthTex);
+        RenderTexture depthColored = RenderDepthColored(
+            depthTex, rgb, depthWorldToClip,
+            pose.position, pose.rotation, intrinsics, currentRes);
 
-        var intrinsics = passthroughCameraLeft.Intrinsics;
-        var rightIntrinsics = passthroughCameraRight.Intrinsics;
+        // Tutti i Blit sono già in coda alla GPU: ora si chiedono le letture, nello stesso ordine
+        // dei file della vecchia cartella. Un output null (materiale mancante) viene saltato.
+        const Texture2D.EXRFlags exrFloatZip = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
+        job.Add("LeftRGB.png", rgb, ImageKind.Png);
+        job.Add("RightRGB.png", rgbRight, ImageKind.Png);
+        job.Add("rawDepth.exr", rawDepth, ImageKind.Exr, Texture2D.EXRFlags.None);   // half, come prima
+        job.Add("alignedDepth.exr", alignedDepth, ImageKind.Exr, exrFloatZip);
+        job.Add("LeftRGB_depthRes.png", rgbDepthRes, ImageKind.Png);
+        job.Add("RightRGB_depthRes.png", rgbRightDepthRes, ImageKind.Png);
+        job.Add("alignedDepth_depthRes.exr", alignedDepthDepthRes, ImageKind.Exr, exrFloatZip);
+        job.Add("alignedDepth_sobel.exr", alignedDepthSobel, ImageKind.Exr, exrFloatZip);
+        job.Add("alignedDepth_sobel_depthRes.exr", alignedDepthSobelDepthRes, ImageKind.Exr, exrFloatZip);
+        job.Add("Colored.png", depthColored, ImageKind.Png);
+
+        // === METADATI === (piccoli: si calcolano ora, con le pose di QUESTO frame)
+        // Pose PCA sinistra/destra (world/tracking space) — usate per
+        // riproiettare i punti depth unprojected nello spazio camera RGB server-side.
+        string timestamp = passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff");
+        job.texts["LeftCamPose.json"] = JsonUtility.ToJson(new PoseData
+        {
+            px = pose.position.x, py = pose.position.y, pz = pose.position.z,
+            rx = pose.rotation.x, ry = pose.rotation.y, rz = pose.rotation.z, rw = pose.rotation.w,
+            timestamp = timestamp
+        });
+        job.texts["RightCamPose.json"] = JsonUtility.ToJson(new PoseData
+        {
+            px = rightPose.position.x, py = rightPose.position.y, pz = rightPose.position.z,
+            rx = rightPose.rotation.x, ry = rightPose.rotation.y, rz = rightPose.rotation.z, rw = rightPose.rotation.w,
+            timestamp = timestamp
+        });
+        // Intrinseci RGB
+        job.texts["LeftIntrinsics.json"] = JsonUtility.ToJson(new IntrinsicsData
+        {
+            FocalLength = intrinsics.FocalLength,
+            PrincipalPoint = intrinsics.PrincipalPoint,
+            SensorResolution = intrinsics.SensorResolution
+        });
+        job.texts["RightIntrinsics.json"] = JsonUtility.ToJson(new IntrinsicsData
+        {
+            FocalLength = rightIntrinsics.FocalLength,
+            PrincipalPoint = rightIntrinsics.PrincipalPoint,
+            SensorResolution = rightIntrinsics.SensorResolution
+        });
+        job.texts["PassthroughCamDistance.txt"] = Vector3.Distance(pose.position, rightPose.position)
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        // Matrice di reprojection della DEPTH camera (world -> clip): fov + pose
+        // del sensore depth già bakati. Il server unprojetta la depth con la sua
+        // inversa (salvata sotto).
+        job.texts["reprojection.json"] = JsonUtility.ToJson(new Matrix4x4Data(depthWorldToClip));
+        job.texts["reprojection_inverse.json"] = JsonUtility.ToJson(new Matrix4x4Data(depthWorldToClip.inverse));
+        // zBufferParams (per la linearizzazione offline dei valori di depth raw)
+        job.texts["zbuffer_params.json"] = JsonUtility.ToJson(new ZBufferParamsData
+        {
+            x = zParams.x, y = zParams.y, z = zParams.z, w = zParams.w
+        });
+        // Risoluzione nativa della depth texture.
+        job.texts["depth_meta.json"] = JsonUtility.ToJson(new DepthMetaData { width = depthW, height = depthH });
+
+        job.dir = saveToDisk ? $"{Application.persistentDataPath}/keyframes/{job.index}" : null;
+
+        // Marca il frame depth come consumato: il prossimo keyframe userà un id diverso.
+        _lastCapturedDepthTexId = depthTexId;
+        _inFlight++;
 
         // A scan attiva: mostra il conteggio incrementale dei keyframe catturati.
         if (debugText != null)
             debugText.text = $"Scan attiva, kf = {_keyframeCount}";
 
-        var kf = new CapturedKeyframe
-        {
-            rgb = rgb,
-            rgbRight = rgbRight,
-            rawDepth = rawDepth,
-            alignedDepth = alignedDepth,
-            rgbDepthRes = rgbDepthRes,
-            rgbRightDepthRes = rgbRightDepthRes,
-            alignedDepthDepthRes = alignedDepthDepthRes,
-            alignedDepthSobel = alignedDepthSobel,
-            alignedDepthSobelDepthRes = alignedDepthSobelDepthRes,
-            depthColored = depthColored,
-            position = pose.position,
-            rotation = pose.rotation,
-            RightCamPosition = rightPose.position,
-            RightCamRotation = rightPose.rotation,
-            timestamp = passthroughCameraLeft.Timestamp,
-            intrinsics = intrinsics,
-            rightIntrinsics = rightIntrinsics,
-            reprojectionMatrix = depthWorldToClip,
-            zBufferParams = zParams,
-            depthResolution = new Vector2(depthTex.width, depthTex.height)
-        };
-
-        //Debug.Log("----------------PCA TIME WHEN SAVING KEYFRAME:" + passthroughCameraLeft.Timestamp.ToString("HH:mm:ss:fff"));
-        //Debug.Log("----------------UNITY TIME WHEN SAVING KEYFRAME:" + System.DateTime.Now.ToString("HH:mm:ss:fff"));
-        try
-        {
-            SaveKeyframeToDisk(kf, _keyframeCount++);
-        }
-        finally
-        {
-            // Anche se il salvataggio (o chi ascolta KeyframeEncoded) lancia un'eccezione: senza
-            // finally le texture resterebbero in RAM e al frame dopo si ritenterebbe la cattura
-            // dello stesso frame depth, perdendone altre 10 a ogni tentativo.
-
-            // Marca il frame depth come consumato: il prossimo keyframe userà un id diverso.
-            _lastCapturedDepthTexId = depthTexId;
-
-            // Distrugge subito le texture — i byte codificati sono già stati prodotti.
-            Destroy(kf.rgb);
-            Destroy(kf.rgbRight);
-            Destroy(kf.rawDepth);
-            Destroy(kf.alignedDepth);
-            Destroy(kf.rgbDepthRes);
-            Destroy(kf.rgbRightDepthRes);
-            Destroy(kf.alignedDepthDepthRes);
-            Destroy(kf.alignedDepthSobel);
-            Destroy(kf.alignedDepthSobelDepthRes);
-            Destroy(kf.depthColored);
-        }
+        StartReadbacks(job);
         Debug.Log($"Keyframe captured: {_keyframeCount} | pos: {pose.position} | depthTexId: {depthTexId}");
+        return true;
     }
 
-    // Codifica tutti i file del keyframe in memoria, poi li salva su disco (se saveToDisk),
-    // li manda a HttpManager (se presente in scena) e li notifica con KeyframeEncoded.
-    void SaveKeyframeToDisk(CapturedKeyframe kf, int index)
+    // ---------- Pipeline asincrona ----------
+
+    enum ImageKind { Png, Exr }
+
+    class ImageOut
     {
-        var files = new Dictionary<string, byte[]>();
-        void AddText(string name, string text) => files[name] = System.Text.Encoding.UTF8.GetBytes(text);
+        public string name;
+        public RenderTexture rt;
+        public ImageKind kind;
+        public Texture2D.EXRFlags exrFlags;
+        public NativeArray<byte> data;   // Persistent: liberato dal thread di codifica
+        public int width, height;
+        public GraphicsFormat format;
+    }
 
-        // RGB
-        byte[] rgbBytes = kf.rgb.EncodeToPNG();
-        files["LeftRGB.png"] = rgbBytes;
+    class KeyframeJob
+    {
+        public int index;
+        public string dir;   // null = niente disco
+        public readonly List<ImageOut> images = new();
+        public readonly Dictionary<string, string> texts = new();
+        public int pending;
+        public bool failed;
 
-        // RGB destro
-        byte[] rgbRightBytes = kf.rgbRight.EncodeToPNG();
-        files["RightRGB.png"] = rgbRightBytes;
-
-        // Depth raw, non registrata, risoluzione nativa depth camera, float EXR.
-        byte[] rawDepthBytes = kf.rawDepth.EncodeToEXR();
-        files["rawDepth.exr"] = rawDepthBytes;
-
-        // Depth allineata, registrata, risoluzione frame RGB, EXR float32 + ZIP:
-        // completamente LOSSLESS (mantiene i 32 bit pieni, ZIP comprime senza perdita).
-        // ~4-6 MB invece di ~12 MB del float32 non compresso, senza perdere precisione.
-        byte[] alignedDepthBytes = kf.alignedDepth.EncodeToEXR(
-            Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-        files["alignedDepth.exr"] = alignedDepthBytes;
-
-
-        // === Coppia a risoluzione DEPTH ===
-        // RGB (sinistro/destro) ricampionato a risoluzione depth, PNG.
-        //if (kf.rgbDepthRes != null)
-        //{
-            byte[] rgbDepthResBytes = kf.rgbDepthRes.EncodeToPNG();
-            files["LeftRGB_depthRes.png"] = rgbDepthResBytes;
-        //}
-        if (kf.rgbRightDepthRes != null)
+        public void Add(string name, RenderTexture rt, ImageKind kind, Texture2D.EXRFlags flags = 0)
         {
-            byte[] rgbRightDepthResBytes = kf.rgbRightDepthRes.EncodeToPNG();
-            files["RightRGB_depthRes.png"] = rgbRightDepthResBytes;
+            if (rt != null) images.Add(new ImageOut { name = name, rt = rt, kind = kind, exrFlags = flags });
         }
-        // Depth allineata all'RGB ma renderizzata a risoluzione depth, float EXR.
-        //if (kf.alignedDepthDepthRes != null)
-        //{
-            byte[] alignedDepthResBytes = kf.alignedDepthDepthRes.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            files["alignedDepth_depthRes.exr"] = alignedDepthResBytes;
-        //}
+    }
 
-        // Depth allineata col gate del gradiente relativo (edge-bleeding azzerato),
-        // risoluzione RGB e risoluzione depth, float EXR.
-        //if (kf.alignedDepthSobel != null)
-        //{
-            byte[] sobelBytes = kf.alignedDepthSobel.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            files["alignedDepth_sobel.exr"] = sobelBytes;
-        //}
-        //if (kf.alignedDepthSobelDepthRes != null)
-        //{
-            byte[] sobelDepthResBytes = kf.alignedDepthSobelDepthRes.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP);
-            files["alignedDepth_sobel_depthRes.exr"] = sobelDepthResBytes;
-        //}
-
-        // Point cloud colorato (depth -> 3D -> colore RGB), risoluzione depth, PNG.
-        if (kf.depthColored != null)
+    void StartReadbacks(KeyframeJob job)
+    {
+        job.pending = job.images.Count;
+        foreach (var img in job.images)
         {
-            byte[] coloredBytes = kf.depthColored.EncodeToPNG();
-            files["Colored.png"] = coloredBytes;
+            // Lettura nel formato NATIVO della RT (ARGB32 → 4 byte, ARGBFloat → 16 byte): nessuna
+            // conversione sulla GPU, quindi gli stessi byte che dava ReadPixels (niente decode sRGB).
+            img.width = img.rt.width;
+            img.height = img.rt.height;
+            img.format = img.rt.graphicsFormat;
+            int bytesPerPixel = img.kind == ImageKind.Exr ? 16 : 4;
+            img.data = new NativeArray<byte>(img.width * img.height * bytesPerPixel,
+                                             Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var captured = img;
+            AsyncGPUReadback.RequestIntoNativeArray(ref img.data, img.rt, 0, req => OnReadback(job, captured, req));
         }
+        if (job.pending == 0) FinishOnMainThread(job, null, "nessuna immagine prodotta (materiali mancanti?)");
+    }
 
-        // Pose PCA sinistra/destra (world/tracking space) — usate per
-        // riproiettare i punti depth unprojected nello spazio camera RGB server-side.
-        string pose = JsonUtility.ToJson(new PoseData
+    // Main thread, qualche frame dopo la richiesta.
+    void OnReadback(KeyframeJob job, ImageOut img, AsyncGPUReadbackRequest req)
+    {
+        if (req.hasError) job.failed = true;
+        RenderTexture.ReleaseTemporary(img.rt);   // la GPU ha finito di usarla
+        img.rt = null;
+        if (--job.pending > 0) return;
+
+        if (job.failed)
         {
-            px = kf.position.x, py = kf.position.y, pz = kf.position.z,
-            rx = kf.rotation.x, ry = kf.rotation.y, rz = kf.rotation.z, rw = kf.rotation.w,
-            timestamp = kf.timestamp.ToString("HH:mm:ss:fff")
-        });
+            foreach (var i in job.images) if (i.data.IsCreated) i.data.Dispose();
+            FinishOnMainThread(job, null, "AsyncGPUReadback fallito");
+            return;
+        }
+        Task.Run(() => EncodeAndSave(job));
+    }
 
-        string rightPose = JsonUtility.ToJson(new PoseData
+    // Thread di background: niente API Unity qui, tranne ImageConversion (thread-safe).
+    void EncodeAndSave(KeyframeJob job)
+    {
+        try
         {
-            px = kf.RightCamPosition.x, py = kf.RightCamPosition.y, pz = kf.RightCamPosition.z,
-            rx = kf.RightCamRotation.x, ry = kf.RightCamRotation.y, rz = kf.RightCamRotation.z, rw = kf.RightCamRotation.w,
-            timestamp = kf.timestamp.ToString("HH:mm:ss:fff")
-        });
+            var files = new Dictionary<string, byte[]>();
+            foreach (var img in job.images)
+            {
+                NativeArray<byte> encoded = img.kind == ImageKind.Png
+                    ? ImageConversion.EncodeNativeArrayToPNG(img.data, img.format, (uint)img.width, (uint)img.height)
+                    : ImageConversion.EncodeNativeArrayToEXR(img.data, img.format, (uint)img.width, (uint)img.height, 0, img.exrFlags);
+                files[img.name] = encoded.ToArray();
+                encoded.Dispose();
+                img.data.Dispose();   // i pixel grezzi (fino a 26 MB) si liberano appena codificati
+            }
+            foreach (var t in job.texts)
+                files[t.Key] = System.Text.Encoding.UTF8.GetBytes(t.Value);
 
-        // Intrinseci RGB
-        string RGBIntrinsics = JsonUtility.ToJson(new IntrinsicsData
+            if (job.dir != null)
+            {
+                System.IO.Directory.CreateDirectory(job.dir);
+                foreach (var f in files)
+                    System.IO.File.WriteAllBytes($"{job.dir}/{f.Key}", f.Value);
+            }
+            _mainThreadQueue.Enqueue(() => FinishOnMainThread(job, files, null));
+        }
+        catch (System.Exception ex)
         {
-            FocalLength = kf.intrinsics.FocalLength,
-            PrincipalPoint = kf.intrinsics.PrincipalPoint,
-            SensorResolution = kf.intrinsics.SensorResolution
-        });
+            foreach (var img in job.images) if (img.data.IsCreated) img.data.Dispose();
+            _mainThreadQueue.Enqueue(() => FinishOnMainThread(job, null, ex.Message));
+        }
+    }
 
-        string RGBRightInstrinsics = JsonUtility.ToJson(new IntrinsicsData
+    void FinishOnMainThread(KeyframeJob job, Dictionary<string, byte[]> files, string error)
+    {
+        _inFlight--;
+        if (error != null)
         {
-            FocalLength = kf.rightIntrinsics.FocalLength,
-            PrincipalPoint = kf.rightIntrinsics.PrincipalPoint,
-            SensorResolution = kf.rightIntrinsics.SensorResolution
-        });
-
-        // Matrice di reprojection della DEPTH camera (world -> clip): fov + pose
-        // del sensore depth già bakati. Il server unprojetta la depth con la sua
-        // inversa (salvata sotto). Sostituisce sia la vecchia reproj "eye" sia
-        // DepthCamPose.json (la pose del sensore è dentro questa matrice).
-        string reproj = JsonUtility.ToJson(new Matrix4x4Data(kf.reprojectionMatrix));
-        string reprojInverse = JsonUtility.ToJson(new Matrix4x4Data(kf.reprojectionMatrix.inverse));
-
-        // zBufferParams (per la linearizzazione offline dei valori di depth raw)
-        string zbuf = JsonUtility.ToJson(new ZBufferParamsData
-        {
-            x = kf.zBufferParams.x,
-            y = kf.zBufferParams.y,
-            z = kf.zBufferParams.z,
-            w = kf.zBufferParams.w
-        });
-
-        // Risoluzione nativa della depth texture. FOV/near-far non servono più
-        // separati: sono codificati nella reprojection matrix qui sopra.
-        string depthMeta = JsonUtility.ToJson(new DepthMetaData
-        {
-            width = kf.depthResolution.x,
-            height = kf.depthResolution.y
-        });
-
-        var LeftPose = passthroughCameraLeft.GetCameraPose();
-        var rightCamPose = passthroughCameraRight.GetCameraPose();
-
-        float CamDistance = Vector3.Distance(LeftPose.position, rightCamPose.position);
-
-        AddText("LeftCamPose.json", pose);
-        AddText("RightCamPose.json", rightPose);
-        AddText("LeftIntrinsics.json", RGBIntrinsics);
-        AddText("RightIntrinsics.json", RGBRightInstrinsics);
-
-        AddText("PassthroughCamDistance.txt",
-            CamDistance.ToString(System.Globalization.CultureInfo.InvariantCulture));
-
-        AddText("reprojection.json", reproj);
-        AddText("reprojection_inverse.json", reprojInverse);
-        AddText("zbuffer_params.json", zbuf);
-        AddText("depth_meta.json", depthMeta);
-
-        if (saveToDisk)
-        {
-            string dir = $"{Application.persistentDataPath}/keyframes/{index}";
-            System.IO.Directory.CreateDirectory(dir);
-            foreach (var f in files)
-                System.IO.File.WriteAllBytes($"{dir}/{f.Key}", f.Value);
+            Debug.LogError($"[KF] Keyframe {job.index} scartato: {error}");
+            return;
         }
 
         // ---------------INVIO FRAME BY FRAME----------------
         // HttpManager c'è solo nella scena 3D Reconstruction.
         if (HttpManager.httpMng != null)
-            HttpManager.httpMng.SetRGBTexture(rgbBytes, rgbDepthResBytes, alignedDepthBytes, alignedDepthResBytes, sobelDepthResBytes, pose, RGBIntrinsics, reproj, zbuf, depthMeta);
+            HttpManager.httpMng.SetRGBTexture(
+                files["LeftRGB.png"], files["LeftRGB_depthRes.png"], files["alignedDepth.exr"],
+                files["alignedDepth_depthRes.exr"], files["alignedDepth_sobel_depthRes.exr"],
+                job.texts["LeftCamPose.json"], job.texts["LeftIntrinsics.json"], job.texts["reprojection.json"],
+                job.texts["zbuffer_params.json"], job.texts["depth_meta.json"]);
 
-        KeyframeEncoded?.Invoke(index, files);
+        KeyframeEncoded?.Invoke(job.index, files);
+    }
+
+    // ---------- Rendering su GPU (solo comandi, nessuna attesa) ----------
+
+    static RenderTexture BlitColor(Texture src, int w, int h)
+    {
+        // ARGB32 = R8G8B8A8: si legge come RGBA32 senza conversioni.
+        var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32);
+        Graphics.Blit(src, rt);
+        return rt;
+    }
+
+    static RenderTexture NewFloatRT(int w, int h) =>
+        RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGBFloat);
+
+    /// <summary>
+    /// Depth raw a risoluzione nativa della depth camera (non registrata, non allineata
+    /// all'RGB). Registrazione/allineamento rimandati al server usando la reprojection
+    /// matrix + pose/intrinseci PCA.
+    /// </summary>
+    RenderTexture RenderDepthRaw(Texture depthTexArray)
+    {
+        // Deve passare attraverso lo shader di array-sampling (DepthRawCopy):
+        // un Graphics.Blit semplice usa lo shader sampler2D di default e non
+        // può leggere una slice di Texture2DArray, dando un risultato
+        // piatto/uniforme ("monocolore").
+        if (rawDepthMaterial == null)
+        {
+            Debug.LogError("rawDepthMaterial (Custom/DepthRawCopy) is not assigned — rawDepth.exr would be monochrome.");
+            return null;
+        }
+        // Target float a 4 canali: render target RFloat a canale singolo sono inaffidabili su Quest.
+        var rt = NewFloatRT(depthTexArray.width, depthTexArray.height);
+        Graphics.Blit(depthTexArray, rt, rawDepthMaterial);
+        return rt;
     }
 
     void RetrieveAndSendData()
@@ -693,68 +731,6 @@ public class KeyFrameManager : MonoBehaviour
         //HttpManager.httpMng.SendKeyframesFolder(keyframesDir);
     }
 
-    // Legge un render target RGBA in una Texture2D CPU-side per encoding/salvataggio.
-    Texture2D SaveFrame(RenderTexture rt)
-    {
-        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-        return tex;
-    }
-
-    // Ricampiona una texture sorgente (es. il frame RGB della PCA) in una Texture2D
-    // CPU-side alla risoluzione (w, h) indicata, con un singolo Graphics.Blit. Usato
-    // per la versione RGB a risoluzione depth senza passare dai target a risoluzione RGB.
-    Texture2D SaveFrameAtResolution(Texture src, int w, int h)
-    {
-        if (src == null) return null;
-        RenderTexture rt = new RenderTexture(w, h, 0, RenderTextureFormat.BGRA32);
-        rt.Create();
-        Graphics.Blit(src, rt);
-        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-        Destroy(rt);
-        return tex;
-    }
-
-    /// <summary>
-    /// Salva la depth raw a risoluzione nativa della depth camera (non
-    /// registrata, non allineata all'RGB). Registrazione/allineamento
-    /// rimandati al server usando la reprojection matrix + pose/intrinseci PCA.
-    /// </summary>
-    Texture2D SaveDepthFrameRaw(Texture depthTexArray)
-    {
-        // Deve passare attraverso lo shader di array-sampling (DepthRawCopy):
-        // un Graphics.Blit semplice usa lo shader sampler2D di default e non
-        // può leggere una slice di Texture2DArray, dando un risultato
-        // piatto/uniforme ("monocolore").
-        if (rawDepthMaterial == null)
-        {
-            Debug.LogError("rawDepthMaterial (Custom/DepthRawCopy) is not assigned — rawDepth.exr would be monochrome.");
-            return null;
-        }
-
-        // Usa un target float a 4 canali (come il path di preview BGRA32 funzionante):
-        // render target RFloat a canale singolo + ReadPixels sono inaffidabili su Quest.
-        RenderTexture rt = new RenderTexture(depthTexArray.width, depthTexArray.height, 0, RenderTextureFormat.ARGBFloat);
-        rt.Create();
-        Graphics.Blit(depthTexArray, rt, rawDepthMaterial);
-
-        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBAFloat, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-
-        Destroy(rt);
-        return tex;
-    }
-
     // Replica di CalcSensorCropRegion (metodo privato del SDK PassthroughCameraAccess):
     // l'immagine RGB corrente è un ritaglio centrato del sensore pieno per adattarne
     // l'aspect ratio (es. sensore 1280x1280, immagine 1280x960 -> crop (0,160,1280,960)).
@@ -773,24 +749,26 @@ public class KeyFrameManager : MonoBehaviour
             sensorResolution.y * scaleFactor.y);
     }
 
-    Texture2D SaveAlignedDepthFrame(Texture depthTexArray, Matrix4x4 reprojMatrix,
+    // mat: istanza dedicata (una per risoluzione). Senza un'attesa sincrona tra i due Blit,
+    // impostare due volte lo stesso materiale nello stesso frame sarebbe fragile.
+    RenderTexture RenderAlignedDepth(Material mat, Texture depthTexArray, Matrix4x4 reprojMatrix,
     Vector3 rgbPos, Quaternion rgbRot, PassthroughCameraAccess.CameraIntrinsics intr, Vector4 zParams,
     Vector2 currentResolution, int outWidth, int outHeight)
     {
-        if (alignedDepthMaterial == null) { Debug.LogError("alignedDepthMaterial not assigned"); return null; }
+        if (mat == null) { Debug.LogError("alignedDepthMaterial not assigned"); return null; }
 
-        alignedDepthMaterial.SetMatrix("_ReprojMatrix", reprojMatrix);
-        alignedDepthMaterial.SetVector("_RGBPosition", rgbPos);
-        alignedDepthMaterial.SetMatrix("_RGBRotation", Matrix4x4.Rotate(rgbRot));
-        alignedDepthMaterial.SetVector("_FocalLength", new Vector4(intr.FocalLength.x, intr.FocalLength.y));
-        alignedDepthMaterial.SetVector("_PrincipalPoint", new Vector4(intr.PrincipalPoint.x, intr.PrincipalPoint.y));
-        alignedDepthMaterial.SetVector("_EnvironmentDepthZBufferParams", zParams);
+        mat.SetMatrix("_ReprojMatrix", reprojMatrix);
+        mat.SetVector("_RGBPosition", rgbPos);
+        mat.SetMatrix("_RGBRotation", Matrix4x4.Rotate(rgbRot));
+        mat.SetVector("_FocalLength", new Vector4(intr.FocalLength.x, intr.FocalLength.y));
+        mat.SetVector("_PrincipalPoint", new Vector4(intr.PrincipalPoint.x, intr.PrincipalPoint.y));
+        mat.SetVector("_EnvironmentDepthZBufferParams", zParams);
 
         // Crop di aspect-ratio del sensore (come CalcSensorCropRegion del SDK): mappa
         // la viewport [0,1] dell'immagine RGB nelle coordinate pixel del sensore pieno.
         // Passare (0,0,sensor) darebbe un errore di scala verticale che disallinea la
         // depth ai bordi (0 al centro, massimo in alto/basso).
-        alignedDepthMaterial.SetVector("_CropRegion",
+        mat.SetVector("_CropRegion",
             CalcSensorCropRegion(intr.SensorResolution, currentResolution));
 
         // Risoluzione di output parametrizzata (outWidth/outHeight): il crop sopra
@@ -798,16 +776,9 @@ public class KeyFrameManager : MonoBehaviour
         // piano immagine RGB — qui cambia solo il numero di pixel della griglia. Con
         // outW/outH = currentResolution si ottiene la coppia a risoluzione RGB; con
         // outW/outH = risoluzione depth quella a risoluzione depth.
-        RenderTexture rt = new RenderTexture(outWidth, outHeight, 0, RenderTextureFormat.ARGBFloat);
-        rt.Create();
-        Graphics.Blit(depthTexArray, rt, alignedDepthMaterial);
-        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBAFloat, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-        Destroy(rt);
-        return tex;
+        var rt = NewFloatRT(outWidth, outHeight);
+        Graphics.Blit(depthTexArray, rt, mat);
+        return rt;
     }
 
     /// <summary>
@@ -819,26 +790,18 @@ public class KeyFrameManager : MonoBehaviour
     /// <param name="tauRel">Soglia del gradiente relativo passata allo shader per QUESTO
     /// blit. Va scelta in base alla risoluzione della depth sorgente (più alta a bassa
     /// risoluzione). <= 0 disattiva il gate (passthrough).</param>
-    Texture2D SaveDepthSobel(Texture2D alignedDepth, float tauRel)
+    RenderTexture RenderDepthSobel(Material mat, RenderTexture alignedDepth, float tauRel)
     {
         if (alignedDepth == null) return null;
-        if (sobelMaterial == null) { Debug.LogError("sobelMaterial (Custom/DepthSobel) not assigned"); return null; }
+        if (mat == null) { Debug.LogError("sobelMaterial (Custom/DepthSobel) not assigned"); return null; }
 
-        // Soglia impostata per-blit: il materiale è condiviso, ma i blit sono sequenziali
-        // sul main thread, quindi ogni chiamata usa il proprio tauRel.
-        sobelMaterial.SetFloat("_TauRel", tauRel);
+        // Istanza dedicata per risoluzione: ognuna tiene il proprio tauRel.
+        mat.SetFloat("_TauRel", tauRel);
 
         // Target float: la depth mascherata è metrica, non va clampata a [0,1].
-        RenderTexture rt = new RenderTexture(alignedDepth.width, alignedDepth.height, 0, RenderTextureFormat.ARGBFloat);
-        rt.Create();
-        Graphics.Blit(alignedDepth, rt, sobelMaterial);
-        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBAFloat, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-        Destroy(rt);
-        return tex;
+        var rt = NewFloatRT(alignedDepth.width, alignedDepth.height);
+        Graphics.Blit(alignedDepth, rt, mat);
+        return rt;
     }
 
     /// <summary>
@@ -847,7 +810,7 @@ public class KeyFrameManager : MonoBehaviour
     /// camera RGB e ne campiona il colore. Output = point cloud colorato in layout
     /// depth (risoluzione depth camera). Usa lo shader Custom/DepthColorReprojection.
     /// </summary>
-    Texture2D SaveDepthColored(Texture depthTexArray, Texture rgbTex, Matrix4x4 reprojMatrix,
+    RenderTexture RenderDepthColored(Texture depthTexArray, Texture rgbTex, Matrix4x4 reprojMatrix,
         Vector3 rgbPos, Quaternion rgbRot, PassthroughCameraAccess.CameraIntrinsics intr,
         Vector2 currentResolution)
     {
@@ -866,43 +829,10 @@ public class KeyFrameManager : MonoBehaviour
             CalcSensorCropRegion(intr.SensorResolution, currentResolution));
         depthColorMaterial.SetTexture("_RGBTex", rgbTex);
 
-        RenderTexture rt = new RenderTexture(depthTexArray.width, depthTexArray.height, 0, RenderTextureFormat.ARGB32);
-        rt.Create();
+        var rt = RenderTexture.GetTemporary(depthTexArray.width, depthTexArray.height, 0, RenderTextureFormat.ARGB32);
         Graphics.Blit(depthTexArray, rt, depthColorMaterial);
-        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-        Destroy(rt);
-        return tex;
+        return rt;
     }
-}
-
-// Bundle in memoria per un singolo keyframe catturato, prima della serializzazione su disco.
-[System.Serializable]
-public struct CapturedKeyframe
-{
-    public Texture2D rgb;             // RGB sinistro, risoluzione RGB nativa
-    public Texture2D rgbRight;        // RGB destro, risoluzione RGB nativa
-    public Texture2D rawDepth;
-    public Texture2D alignedDepth;    // depth allineata all'RGB, risoluzione RGB
-    public Texture2D rgbDepthRes;         // RGB sinistro ricampionato a risoluzione depth
-    public Texture2D rgbRightDepthRes;    // RGB destro ricampionato a risoluzione depth
-    public Texture2D alignedDepthDepthRes;// depth allineata all'RGB, risoluzione depth
-    public Texture2D alignedDepthSobel;        // Sobel della depth allineata, risoluzione RGB
-    public Texture2D alignedDepthSobelDepthRes;// Sobel della depth allineata, risoluzione depth
-    public Texture2D depthColored;    // point cloud colorato: depth -> 3D -> colore RGB
-    public Vector3 position;          // posizione camera PCA sinistra
-    public Vector3 RightCamPosition;  // posizione camera PCA destra
-    public Quaternion rotation;       // rotazione camera PCA sinistra
-    public Quaternion RightCamRotation;
-    public System.DateTime timestamp;
-    public PassthroughCameraAccess.CameraIntrinsics intrinsics;
-    public PassthroughCameraAccess.CameraIntrinsics rightIntrinsics;
-    public Matrix4x4 reprojectionMatrix; // depth camera world->clip (pose+fov sensore depth bakati)
-    public Vector4 zBufferParams;
-    public Vector2 depthResolution;
 }
 
 [System.Serializable]

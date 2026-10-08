@@ -4713,7 +4713,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 506993738024672385, guid: 9ec3eb95f035bc84e8389a5176edf47a, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5615718780042072591, guid: 9ec3eb95f035bc84e8389a5176edf47a, type: 3}
       propertyPath: m_Depth
@@ -5649,6 +5649,120 @@ Transform:
   - {fileID: 219540831}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1910000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1910000002}
+  - component: {fileID: 1910000003}
+  m_Layer: 0
+  m_Name: Depth Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1910000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1910000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1910000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1910000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71a155ece80369d4e99bdaf5e59169b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _occlusionShadersMode: 0
+  _removeHands: 0
+  CustomTrackingSpace: {fileID: 0}
+  <MaskMeshFilters>k__BackingField: []
+--- !u!1 &1910000004
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1910000006}
+  - component: {fileID: 1910000005}
+  m_Layer: 0
+  m_Name: KeyFrameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1910000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1910000004}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7daa46011cfb35b46a8debb006570936, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KeyFrameManager
+  translationThreshold: 0.1
+  rotationThreshold: 5
+  maxHeadAngularSpeed: 30
+  maxHeadTranslationSpeed: 0.5
+  MaximumPosDeviation: 0.1
+  MaximumRotDeviation: 5
+  passthroughCameraLeft: {fileID: 1748868315344937867}
+  passthroughCameraRight: {fileID: 964992456}
+  leftCamera: {fileID: 0}
+  rawDepthMaterial: {fileID: 2100000, guid: b50a8aa39b0a54083973b3150a6ea92c, type: 2}
+  alignedDepthMaterial: {fileID: 2100000, guid: 1e576506abde8424aad3a94365f5f3cc, type: 2}
+  depthColorMaterial: {fileID: 2100000, guid: 56ee7b5dadfce5443bb71cd82371f805, type: 2}
+  sobelMaterial: {fileID: 2100000, guid: 1276c2866f4799c449a1b26d1fa0cdd9, type: 2}
+  sobelTauRelRGBRes: 0.05
+  sobelTauRelDepthRes: 0.15
+  environmentDepthManager: {fileID: 1910000003}
+  debugText: {fileID: 0}
+  scanToggleButton: 67108864
+  scanEnabledOnStart: 1
+  saveToDisk: 1
+  verboseLog: 0
+  maxHeadPoseHistorySize: 60
+--- !u!4 &1910000006
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1910000004}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2100420888
 GameObject:
   m_ObjectHideFlags: 0
@@ -5884,120 +5998,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5778830869252717688, guid: 7cdc6379b47554fb1a5a14b08410530b, type: 3}
   m_PrefabInstance: {fileID: 8618951716171618344}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1910000001
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1910000002}
-  - component: {fileID: 1910000003}
-  m_Layer: 0
-  m_Name: Depth Manager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1910000002
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1910000001}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1910000003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1910000001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 71a155ece80369d4e99bdaf5e59169b5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _occlusionShadersMode: 0
-  _removeHands: 0
-  CustomTrackingSpace: {fileID: 0}
-  <MaskMeshFilters>k__BackingField: []
---- !u!1 &1910000004
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1910000006}
-  - component: {fileID: 1910000005}
-  m_Layer: 0
-  m_Name: KeyFrameManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1910000005
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1910000004}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7daa46011cfb35b46a8debb006570936, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KeyFrameManager
-  translationThreshold: 0.1
-  rotationThreshold: 5
-  maxHeadAngularSpeed: 30
-  maxHeadTranslationSpeed: 0.5
-  MaximumPosDeviation: 0.1
-  MaximumRotDeviation: 5
-  passthroughCameraLeft: {fileID: 1748868315344937867}
-  passthroughCameraRight: {fileID: 964992456}
-  leftCamera: {fileID: 0}
-  rawDepthMaterial: {fileID: 2100000, guid: b50a8aa39b0a54083973b3150a6ea92c, type: 2}
-  alignedDepthMaterial: {fileID: 2100000, guid: 1e576506abde8424aad3a94365f5f3cc, type: 2}
-  depthColorMaterial: {fileID: 2100000, guid: 56ee7b5dadfce5443bb71cd82371f805, type: 2}
-  sobelMaterial: {fileID: 2100000, guid: 1276c2866f4799c449a1b26d1fa0cdd9, type: 2}
-  sobelTauRelRGBRes: 0.05
-  sobelTauRelDepthRes: 0.15
-  environmentDepthManager: {fileID: 1910000003}
-  debugText: {fileID: 0}
-  scanToggleButton: 67108864
-  scanEnabledOnStart: 1
-  saveToDisk: 1
-  verboseLog: 0
-  maxHeadPoseHistorySize: 60
---- !u!4 &1910000006
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1910000004}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
